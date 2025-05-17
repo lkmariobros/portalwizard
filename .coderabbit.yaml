@@ -1,0 +1,67 @@
+# CodeRabbit Configuration File
+
+# Define which files to include/exclude
+files:
+  include:
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.jsx"
+    - "**/*.json"
+    - "**/*.md"
+  exclude:
+    - "node_modules/**"
+    - "dist/**"
+    - "build/**"
+    - ".next/**"
+    - ".turbo/**"
+
+# Configure review settings
+review:
+  # Maximum number of comments per review
+  max_comments: 30
+  
+  # Enable auto-approval for trivial changes
+  auto_approve: true
+  
+  # Configure AI behavior
+  ai:
+    # The model to use for reviews
+    model: "gpt-4o"
+    
+    # Whether to enable AI-powered review summaries
+    summarize: true
+    
+    # Context to help CodeRabbit understand your codebase
+    context: |
+      This is a Turborepo monorepo project using React 19, TypeScript, 
+      Next.js, tRPC, TailwindCSS v4, and Shadcn/Radix UI components.
+      The codebase follows functional programming principles and
+      specific naming conventions (camelCase for variables/functions,
+      PascalCase for components).
+
+# Tech-specific rules
+rules:
+  typescript:
+    enabled: true
+    # Add TypeScript-specific rules
+  react:
+    enabled: true
+    # Add React-specific rules
+  
+# Configure paths to ignore entirely
+ignores:
+  - "**/*.d.ts"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/generated/**"
+
+# Specify important code owners for different parts of the codebase
+# This helps CodeRabbit know who to tag in reviews
+code_owners:
+  - pattern: "apps/web/**"
+    owners: ["@YOUR_GITHUB_USERNAME"]
+  - pattern: "apps/server/**"
+    owners: ["@YOUR_GITHUB_USERNAME"]
+  - pattern: "packages/**"
+    owners: ["@YOUR_GITHUB_USERNAME"]

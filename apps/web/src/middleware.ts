@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 
 	// Check if the user is trying to access a protected route (e.g., /dashboard and its sub-routes)
-	if (pathname.startsWith("/dashboard")) {
+	if (pathname.startsWith("/dashboard") || pathname.startsWith("/agent") || pathname.startsWith("/admin")) {
 		const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
 		if (!sessionToken) {
@@ -27,5 +27,7 @@ export function middleware(request: NextRequest) {
 export const config = {
 	matcher: [
 		"/dashboard/:path*", // Protect the dashboard and all its sub-routes
+		"/agent/:path*",     // Protect the agent portal and all its sub-routes
+		"/admin/:path*",     // Protect the admin portal and all its sub-routes
 	],
 };

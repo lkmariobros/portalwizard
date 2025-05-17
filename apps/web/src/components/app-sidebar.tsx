@@ -1,5 +1,23 @@
 import type * as React from "react";
 
+// Define types for navigation items
+interface NavItem {
+  title: string;
+  href: string; 
+  icon: React.ElementType; // Icons are expected to be React components
+  isActive?: boolean;
+}
+
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+// Props for AppSidebar, including navItems
+interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  navItems?: NavGroup[]; // Navigation items will be passed as a prop
+}
+
 import { SearchForm } from "@/components/search-form";
 import { TeamSwitcher } from "@/components/team-switcher";
 import {
@@ -106,8 +124,9 @@ const data = {
 
 export function AppSidebar({
 	className,
+	navItems,
 	...props
-}: React.ComponentProps<typeof Sidebar>) {
+}: AppSidebarProps) {
 	// console.log("[AppSidebar] Rendering AppSidebar"); // Removed debug line
 	return (
 		<Sidebar collapsible="icon" className={className} {...props}>
@@ -124,7 +143,7 @@ export function AppSidebar({
 				<SearchForm className="group-data-[state=collapsed]/sidebar-wrapper:hidden" />
 			</SidebarHeader>
 			<SidebarContent>
-				{data.navMain.map((group) => (
+				{(navItems || []).map((group) => (
 					<SidebarGroup key={group.title}>
 						<SidebarGroupLabel
 							className={cn(
@@ -151,7 +170,7 @@ export function AppSidebar({
 											)}
 											isActive={item.isActive}
 										>
-											<a href={item.url}>
+											<a href={item.href}>
 												{item.icon && (
 													<item.icon
 														className="text-muted-foreground/60 group-data-[active=true]/menu-button:text-primary"

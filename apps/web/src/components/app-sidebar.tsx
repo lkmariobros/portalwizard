@@ -2,20 +2,20 @@ import type * as React from "react";
 
 // Define types for navigation items
 interface NavItem {
-  title: string;
-  href: string; 
-  icon: React.ElementType; // Icons are expected to be React components
-  isActive?: boolean;
+	title: string;
+	href: string;
+	icon: React.ElementType; // Icons are expected to be React components
+	isActive?: boolean;
 }
 
 interface NavGroup {
-  title: string;
-  items: NavItem[];
+	title: string;
+	items: NavItem[];
 }
 
 // Props for AppSidebar, including navItems
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  navItems?: NavGroup[]; // Navigation items will be passed as a prop
+	navItems?: NavGroup[]; // Navigation items will be passed as a prop
 }
 
 import { SearchForm } from "@/components/search-form";
@@ -122,11 +122,7 @@ const data = {
 	],
 };
 
-export function AppSidebar({
-	className,
-	navItems,
-	...props
-}: AppSidebarProps) {
+export function AppSidebar({ className, navItems, ...props }: AppSidebarProps) {
 	// console.log("[AppSidebar] Rendering AppSidebar"); // Removed debug line
 	return (
 		<Sidebar collapsible="icon" className={className} {...props}>

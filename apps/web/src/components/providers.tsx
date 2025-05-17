@@ -1,20 +1,21 @@
 "use client";
+import { Toaster } from "@/components/ui/sonner";
+import { queryClient } from "@/utils/trpc";
+import { QueryClientProvider } from "@tanstack/react-query";
+import type React from "react";
+import { useEffect, useState } from "react";
 import { ThemeProvider } from "./theme-provider";
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from '@/utils/trpc';
-import React, { useState, useEffect } from "react"; 
-import { Toaster } from '@/components/ui/sonner'; 
 
 export default function Providers({
 	children,
 }: {
 	children: React.ReactNode;
 }) {
-  const [hasMounted, setHasMounted] = useState(false);
+	const [hasMounted, setHasMounted] = useState(false);
 
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
+	useEffect(() => {
+		setHasMounted(true);
+	}, []);
 
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -24,7 +25,7 @@ export default function Providers({
 				enableSystem
 				disableTransitionOnChange
 			>
-				{hasMounted && <Toaster richColors />} 
+				{hasMounted && <Toaster richColors />}
 				{children}
 			</ThemeProvider>
 		</QueryClientProvider>

@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import React from 'react'
+import React from "react";
 
 export function DefaultPendingFallback() {
-  return <p>Loading...</p>
+	return <p>Loading...</p>;
 }
 
 export function DefaultErrorFallback() {
-  return <p>Error!</p>
+	return <p>Error!</p>;
 }

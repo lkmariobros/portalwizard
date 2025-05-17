@@ -132,7 +132,16 @@ function SidebarProvider({
 			toggleSidebar,
 			hasMounted, // Pass hasMounted in context
 		}),
-		[state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar, hasMounted],
+		[
+			state,
+			open,
+			setOpen,
+			isMobile,
+			openMobile,
+			setOpenMobile,
+			toggleSidebar,
+			hasMounted,
+		],
 	);
 
 	return (
@@ -173,7 +182,8 @@ function Sidebar({
 	variant?: "sidebar" | "floating" | "inset";
 	collapsible?: "offcanvas" | "icon" | "none";
 }) {
-	const { isMobile, state, openMobile, setOpenMobile, hasMounted } = useSidebar(); // Get hasMounted from context
+	const { isMobile, state, openMobile, setOpenMobile, hasMounted } =
+		useSidebar(); // Get hasMounted from context
 
 	if (collapsible === "none") {
 		return (
@@ -190,7 +200,8 @@ function Sidebar({
 		);
 	}
 
-	if (hasMounted && isMobile) { // Only render Sheet if mounted and mobile
+	if (hasMounted && isMobile) {
+		// Only render Sheet if mounted and mobile
 		return (
 			<Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
 				<SheetContent

@@ -14,17 +14,24 @@ import {
 	SelectGroup,
 	SelectItem,
 	SelectTrigger,
+	SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FormApi, useForm } from "@tanstack/react-form";
 import type { AnyFieldApi, AnyFormApi } from "@tanstack/react-form";
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { CalendarIcon, ChevronDown, ChevronsUpDown, Search } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
+
 
 // Utility function to format currency values
-const formatCurrency = (value: string) => {
-	if (!value) return "";
-	const num = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
+const formatCurrency = (value: string | number) => {
+	if (value === undefined || value === null || value === "") return "";
+	const stringValue = typeof value === 'number' ? String(value) : value;
+	const num = Number.parseFloat(stringValue.replace(/[^0-9.]/g, ""));
 	return Number.isNaN(num)
 		? ""
 		: num.toLocaleString("en-US", {
@@ -38,6 +45,41 @@ const parseCurrency = (value: string) => {
 	if (!value) return 0;
 	const num = Number.parseFloat(value.replace(/[^0-9.]/g, ""));
 	return Number.isNaN(num) ? 0 : num;
+};
+
+// Agent tier definitions for commission calculation
+type AgentTier = {
+	name: string;
+	overridingPercentage: number;
+	leadershipBonus: number;
+};
+
+const agentTiers: Record<string, AgentTier> = {
+	advisor: { 
+		name: "Advisor", 
+		overridingPercentage: 70, 
+		leadershipBonus: 0
+	},
+	salesLeader: { 
+		name: "Sales Leader", 
+		overridingPercentage: 80, 
+		leadershipBonus: 7 
+	},
+	teamLeader: { 
+		name: "Team Leader", 
+		overridingPercentage: 83, 
+		leadershipBonus: 5 
+	},
+	groupLeader: { 
+		name: "Group Leader", 
+		overridingPercentage: 85, 
+		leadershipBonus: 8 
+	},
+	supremeLeader: { 
+		name: "Supreme Leader", 
+		overridingPercentage: 85, 
+		leadershipBonus: 6 
+	},
 };
 
 interface TransactionFormValues {
@@ -114,7 +156,12 @@ const STEPS = [
 	"Review & Submit",
 ];
 
-export function NewTransactionForm() {
+interface NewTransactionFormProps {
+	onComplete?: () => void;
+	agentTierKey?: keyof typeof agentTiers;
+}
+
+export function NewTransactionForm({ onComplete, agentTierKey = 'advisor' }: NewTransactionFormProps) {
 	const [step, setStep] = useState(0);
 	const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
 
@@ -125,12 +172,15 @@ export function NewTransactionForm() {
 	// State for property type suggestions dropdown
 	const [showPropertyTypeSuggestions, setShowPropertyTypeSuggestions] =
 		React.useState(false);
+	const [propertyTypeInputValue, setPropertyTypeInputValue] = React.useState("");
 	// Local state for co-broking to ensure immediate UI updates
 	const [localCoBrokingEnabled, setLocalCoBrokingEnabled] =
 		React.useState(false);
 	const [localCoBrokingDirection, setLocalCoBrokingDirection] = React.useState<
 		"seller" | "buyer"
 	>("seller");
+
+
 	// Get today's date in YYYY-MM-DD format for default transaction date
 	const today = new Date().toISOString().slice(0, 10);
 
@@ -139,7 +189,7 @@ export function NewTransactionForm() {
 			marketType: "Primary",
 			developerProject: "",
 			secondaryType: "",
-			transactionType: "",
+			transactionType: "", // Default to empty, user must select
 			transactionDate: today,
 			propertyName: "",
 			propertyType: "",
@@ -161,60 +211,167 @@ export function NewTransactionForm() {
 			totalPrice: "",
 			annualRent: "",
 			commissionValue: "",
-			commissionType: "",
+			commissionType: "", // Default to empty, user must select
 			commissionPercentage: "",
 			documents: [],
 			notes: "",
 		},
 		onSubmit: async ({ value }) => {
-			alert("Submitted! Check console for data.");
-			console.log("Transaction Data:", value);
+			// console.log("Form submitted:", value);
+			if (onComplete) {
+				onComplete();
+			}
 		},
 	});
+
+	React.useEffect(() => {
+		// Sync local input state with form state for propertyType
+		if (form.state.values.propertyType !== propertyTypeInputValue) {
+			setPropertyTypeInputValue(form.state.values.propertyType || "");
+		}
+	}, [form.state.values.propertyType, propertyTypeInputValue, setPropertyTypeInputValue]);
+
+	// Function to validate the current step before navigation
+	const validateStep = (currentStep: number): boolean => {
+		let isValid = true;
+		const values = form.state.values;
+		const newFormErrors: Record<string, boolean> = {};
+
+		switch (currentStep) {
+			case 0: // Transaction Type
+				// Validate marketType
+				if (!values.marketType) {
+					newFormErrors.marketType = true;
+					isValid = false;
+				}
+
+				// Validate dependencies and auto-set transactionType consistency
+				if (values.marketType === "Primary") {
+					if (!values.developerProject) {
+						newFormErrors.developerProject = true;
+						isValid = false;
+					}
+					// Ensure transactionType is correctly set to "Sale" for Primary
+					if (values.transactionType !== "Sale") {
+						newFormErrors.transactionType = true; // "Transaction type must be Sale for Primary market."
+						isValid = false;
+					}
+				} else if (values.marketType === "Secondary") {
+					if (!values.secondaryType) {
+						newFormErrors.secondaryType = true;
+						isValid = false;
+					} else {
+						// Ensure transactionType is correctly set based on secondaryType
+						if (values.transactionType !== values.secondaryType) {
+							newFormErrors.transactionType = true; // "Transaction type must match Secondary market type."
+							isValid = false;
+						}
+					}
+				} else if (values.marketType) {
+					// This case implies marketType is selected, but neither Primary nor Secondary (should not happen with current UI)
+					// Or it can be a fallback if transactionType is still not set for a selected marketType
+					if (!values.transactionType) {
+						newFormErrors.transactionType = true;
+						isValid = false;
+					}
+				}
+				// If marketType is not selected, other checks will catch it. If it is, the blocks above handle transactionType.
+				break;
+			case 1: // Property Details
+				if (!values.transactionDate) {
+					newFormErrors.transactionDate = true;
+					isValid = false;
+				}
+				if (!values.propertyName) {
+					newFormErrors.propertyName = true;
+					isValid = false;
+				}
+				if (!values.propertyType) {
+					newFormErrors.propertyType = true;
+					isValid = false;
+				}
+				// Validate totalPrice only if it's a Sale or Resale/Subsale (Sale)
+				if (
+					(values.marketType === "Primary" || (values.marketType === "Secondary" && values.secondaryType === "Sale")) &&
+					(!values.totalPrice || parseCurrency(values.totalPrice) <= 0)
+				) {
+					newFormErrors.totalPrice = true;
+					isValid = false;
+				}
+        // Validate annualRent only if it's a Rental transaction
+        if (
+          values.transactionType === "Rental" &&
+          (!values.annualRent || parseCurrency(values.annualRent) <= 0)
+        ) {
+          newFormErrors.annualRent = true;
+          isValid = false;
+        }
+				break;
+			case 2: // Client Information
+				if (!values.clientName) {
+					newFormErrors.clientName = true;
+					isValid = false;
+				}
+				if (!values.clientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.clientEmail)) {
+					newFormErrors.clientEmail = true;
+					isValid = false;
+				}
+				break;
+			case 3: // Co-Broking
+				if (values.coBrokingEnabled) {
+					if (!values.coBrokingAgentName) {
+						newFormErrors.coBrokingAgentName = true;
+						isValid = false;
+					}
+				}
+				break;
+			case 4: // Commission
+				if (!values.commissionType) {
+					newFormErrors.commissionType = true;
+					isValid = false;
+				}
+				if (values.commissionType === "Percentage" && (!values.commissionPercentage || parseFloat(values.commissionPercentage) <= 0 || parseFloat(values.commissionPercentage) > 100)) {
+					newFormErrors.commissionPercentage = true;
+					isValid = false;
+				}
+				if (values.commissionType === "Fixed Amount" && (!values.commissionValue || parseCurrency(values.commissionValue) <= 0)) {
+					newFormErrors.commissionValue = true;
+					isValid = false;
+				}
+				break;
+		}
+		setFormErrors(newFormErrors);
+		return isValid;
+	};
 
 	// Reset dependent fields and search when marketType changes, reliably
 	const prevMarketType = React.useRef(form.state.values.marketType);
 	React.useEffect(() => {
 		if (form.state.values.marketType !== prevMarketType.current) {
-			setDeveloperProjectSearch("");
+			// Reset fields that depend on marketType
+			form.setFieldValue("developerProject", "");
+			setDeveloperProjectSearch(""); // Also reset search text
+			form.setFieldValue("secondaryType", "");
+
 			if (form.state.values.marketType === "Primary") {
-				// Reset all Secondary-only fields
-				form.setFieldValue("secondaryType", "");
-			} else if (form.state.values.marketType === "Secondary") {
-				// Reset all Primary-only fields
-				form.setFieldValue("developerProject", "");
+				form.setFieldValue("transactionType", "Sale");
+			} else {
+				// For "Secondary" or if marketType is cleared, transactionType is cleared initially
+				form.setFieldValue("transactionType", "");
 			}
-			// Optionally reset other fields that depend on marketType here
+			// Update ref for next comparison
 			prevMarketType.current = form.state.values.marketType;
 		}
-	}, [form.state.values.marketType]);
+	}, [form.state.values.marketType, form, setDeveloperProjectSearch]);
 
-	// Synchronize local co-broking state with form state
-	React.useEffect(() => {
-		if (form.state.values.coBrokingEnabled !== undefined) {
-			setLocalCoBrokingEnabled(form.state.values.coBrokingEnabled);
-		}
-		if (
-			form.state.values.coBrokingDirection === "seller" ||
-			form.state.values.coBrokingDirection === "buyer"
-		) {
-			setLocalCoBrokingDirection(form.state.values.coBrokingDirection);
-		}
-	}, [
-		form.state.values.coBrokingEnabled,
-		form.state.values.coBrokingDirection,
-	]);
-
-	// Step content renderers
-	// Local UI state for toggling secondary client fields
-	const [showClientSecondaryFields, setShowClientSecondaryFields] =
-		useState(false);
-
-	function renderStep() {
+	const renderStep = () => {
 		switch (step) {
-			case 0:
+			case 0: // Transaction Type
 				return (
-					<>
+					<div>
+						<h2 className="mb-4 font-semibold text-xl text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)]">
+							Transaction Type
+						</h2>
 						<form.Field
 							name="marketType"
 							validators={{
@@ -225,16 +382,16 @@ export function NewTransactionForm() {
 							{(field) => (
 								<div className="mb-4">
 									<label
-										className="mb-1 block font-medium"
 										id="market-type-label"
+										className="mb-2 block font-medium"
 									>
-										Market Type
+										Market Type <span className="text-red-500">*</span>
 									</label>
 									<ToggleGroup
 										type="single"
-										value={field.state.value || ""}
+										value={field.state.value}
 										onValueChange={(val) => {
-											if (val === "Primary" || val === "Secondary") {
+											if (val) {
 												field.handleChange(val);
 												// Clear any previous errors for this field
 												setFormErrors((prev) => ({
@@ -250,8 +407,8 @@ export function NewTransactionForm() {
 											value="Primary"
 											className={
 												field.state.value === "Primary"
-													? "rounded bg-blue-600 px-4 py-2 font-semibold text-white shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
-													: "rounded bg-muted px-4 py-2 text-foreground hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+													? "rounded bg-[oklch(0.723_0.219_149.579)] dark:bg-[oklch(0.696_0.17_162.48)] px-4 py-2 font-semibold text-[oklch(0.982_0.018_155.826)] dark:text-[oklch(0.266_0.065_152.934)] shadow focus:outline-none focus:ring-2 focus:ring-[oklch(0.723_0.219_149.579)]/70 dark:focus:ring-[oklch(0.696_0.17_162.48)]/70"
+													: "rounded bg-[oklch(0.967_0.001_286.375)] dark:bg-[oklch(0.21_0.006_285.885)] px-4 py-2 text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)] hover:bg-[oklch(0.967_0.001_286.375)]/70 dark:hover:bg-[oklch(0.274_0.006_286.033)]/30 focus:outline-none focus:ring-2 focus:ring-[oklch(0.723_0.219_149.579)]/70 dark:focus:ring-[oklch(0.696_0.17_162.48)]/70"
 											}
 											aria-pressed={field.state.value === "Primary"}
 										>
@@ -261,8 +418,8 @@ export function NewTransactionForm() {
 											value="Secondary"
 											className={
 												field.state.value === "Secondary"
-													? "rounded bg-blue-600 px-4 py-2 font-semibold text-white shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
-													: "rounded bg-muted px-4 py-2 text-foreground hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+													? "rounded bg-[oklch(0.723_0.219_149.579)] dark:bg-[oklch(0.696_0.17_162.48)] px-4 py-2 font-semibold text-[oklch(0.982_0.018_155.826)] dark:text-[oklch(0.266_0.065_152.934)] shadow focus:outline-none focus:ring-2 focus:ring-[oklch(0.723_0.219_149.579)]/70 dark:focus:ring-[oklch(0.696_0.17_162.48)]/70"
+													: "rounded bg-[oklch(0.967_0.001_286.375)] dark:bg-[oklch(0.21_0.006_285.885)] px-4 py-2 text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)] hover:bg-[oklch(0.967_0.001_286.375)]/70 dark:hover:bg-[oklch(0.274_0.006_286.033)]/30 focus:outline-none focus:ring-2 focus:ring-[oklch(0.723_0.219_149.579)]/70 dark:focus:ring-[oklch(0.696_0.17_162.48)]/70"
 											}
 											aria-pressed={field.state.value === "Secondary"}
 										>
@@ -317,7 +474,7 @@ export function NewTransactionForm() {
 									return (
 										<div className="relative mb-4">
 											<label className="mb-1 block font-medium">
-												Developer Project
+												Developer Project <span className="text-red-500">*</span>
 											</label>
 											<label
 												htmlFor="developer-project-search"
@@ -341,76 +498,64 @@ export function NewTransactionForm() {
 												}}
 												onFocus={() => {
 													// Open dropdown when input is focused
-													if (developerProjectSearch) {
+													if (developerProjectSearch || filtered.length > 0) {
 														setIsProjectDropdownOpen(true);
 													}
 												}}
 												autoComplete="off"
 												aria-label="Search developer projects"
 												onBlur={(e) => {
-													// Only close dropdown if click was outside the dropdown
-													// This prevents immediate closing when clicking inside the dropdown
 													setTimeout(() => {
-														// If user leaves input and hasn't selected, clear search
-														if (!field.state.value)
+														if (!field.state.value && document.activeElement !== e.target && !document.querySelector('[role="listbox"]')?.contains(document.activeElement) ) {
 															setDeveloperProjectSearch("");
-														// Close dropdown after a short delay to allow click events to process
+														}
 														setIsProjectDropdownOpen(false);
 													}, 200);
 												}}
 											/>
-											{/* Auto-suggest dropdown */}
-											{developerProjectSearch &&
-												filtered.length > 0 &&
-												isProjectDropdownOpen && (
-													<div className="absolute z-20 max-h-60 w-full overflow-auto rounded border bg-card shadow">
-														{Object.entries(grouped).map(([loc, projs]) => (
-															<div key={loc}>
-																<div className="px-2 pt-2 pb-1 font-semibold text-muted-foreground text-xs">
-																	{loc}
-																</div>
-																{projs.slice(0, 20).map((p) => (
-																	<div
-																		key={p.name}
-																		className={`cursor-pointer px-4 py-2 hover:bg-blue-100 ${field.state.value === p.name ? "bg-blue-50 font-semibold" : ""}`}
-																		tabIndex={0}
-																		role="option"
-																		aria-selected={field.state.value === p.name}
-																		onMouseDown={(e) => {
-																			e.preventDefault();
+											{isProjectDropdownOpen && (
+												<div role="listbox" className="absolute z-20 max-h-60 w-full overflow-auto rounded border border-[var(--color-sidebar-primary)]/20 dark:border-[var(--color-sidebar-primary)]/30 dark:border-gray-600 bg-white dark:bg-[var(--color-sidebar)] shadow">
+													{Object.keys(grouped).length > 0 ? Object.entries(grouped).map(([loc, projs]) => (
+														<div key={loc}>
+															<div className="px-2 pt-2 pb-1 font-semibold text-muted-foreground text-xs">
+																{loc}
+															</div>
+															{projs.slice(0, 20).map((p) => (
+																<div
+																	key={p.name}
+																	className={`cursor-pointer px-4 py-2 hover:bg-[var(--color-sidebar-accent)] dark:hover:bg-[var(--color-sidebar-accent)]/20 ${field.state.value === p.name ? "bg-[var(--color-sidebar-accent)]/50 dark:bg-[var(--color-sidebar-accent)]/30 font-semibold" : ""}`}
+																	tabIndex={0}
+																	role="option"
+																	aria-selected={field.state.value === p.name}
+																	onMouseDown={(e) => {
+																		e.preventDefault();
+																		field.handleChange(p.name);
+																		setDeveloperProjectSearch(p.name);
+																		setFormErrors((prev) => ({
+																			...prev,
+																			developerProject: false,
+																		}));
+																		setIsProjectDropdownOpen(false);
+																	}}
+																	onKeyDown={(e) => {
+																		if (e.key === "Enter" || e.key === " ") {
 																			field.handleChange(p.name);
 																			setDeveloperProjectSearch(p.name);
-																			// Clear any previous errors for this field
-																			setFormErrors((prev) => ({
-																				...prev,
-																				developerProject: false,
-																			}));
-																			// Close dropdown after selection
 																			setIsProjectDropdownOpen(false);
-																		}}
-																		onKeyDown={(e) => {
-																			if (e.key === "Enter" || e.key === " ") {
-																				field.handleChange(p.name);
-																				setDeveloperProjectSearch(p.name);
-																				// Close dropdown after selection
-																				setIsProjectDropdownOpen(false);
-																			}
-																		}}
-																	>
-																		{p.name}
-																	</div>
-																))}
-															</div>
-														))}
-													</div>
-												)}
-											{developerProjectSearch &&
-												filtered.length === 0 &&
-												isProjectDropdownOpen && (
-													<div className="absolute z-20 w-full rounded border bg-card p-2 text-muted-foreground text-sm shadow">
-														No projects found.
-													</div>
-												)}
+																		}
+																	}}
+																>
+																	{p.name}
+																</div>
+															))}
+														</div>
+													)) : (
+														<div className="p-2 text-muted-foreground text-sm">
+															No projects found.
+														</div>
+													)}
+												</div>
+											)}
 											{((field.state.meta.isTouched &&
 												field.state.meta.errors) ||
 												formErrors.developerProject) && (
@@ -439,56 +584,40 @@ export function NewTransactionForm() {
 							>
 								{(field) => (
 									<div className="mb-4">
-										<label
-											htmlFor="secondaryTransactionType"
-											className="mb-1 block font-medium"
-										>
-											Secondary Transaction Type
+										<label className="mb-1 block font-medium">
+											Secondary Market Type <span className="text-red-500">*</span>
 										</label>
 										<ToggleGroup
-											id="secondaryTransactionType"
 											type="single"
 											value={field.state.value}
-											onValueChange={(val: string) => {
+											onValueChange={(val) => {
 												if (val) {
 													field.handleChange(val);
-													// Clear any previous errors for this field
+													if (form.state.values.marketType === "Secondary") {
+														form.setFieldValue("transactionType", val);
+													}
 													setFormErrors((prev) => ({
 														...prev,
 														secondaryType: false,
+														transactionType: false, // Also clear potential transaction type error
 													}));
 												}
 											}}
-											className="gap-2"
+											className="flex flex-row gap-2"
 										>
-											<ToggleGroupItem
-												value="Sale"
-												className={
-													field.state.value === "Sale"
-														? "rounded bg-blue-600 px-4 py-2 font-semibold text-white shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
-														: "rounded bg-muted px-4 py-2 text-foreground hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-												}
-												aria-pressed={field.state.value === "Sale"}
-											>
+											<ToggleGroupItem value="Sale" className="px-4 py-2">
 												Sale
 											</ToggleGroupItem>
-											<ToggleGroupItem
-												value="Rental"
-												className={
-													field.state.value === "Rental"
-														? "rounded bg-blue-600 px-4 py-2 font-semibold text-white shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
-														: "rounded bg-muted px-4 py-2 text-foreground hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-												}
-												aria-pressed={field.state.value === "Rental"}
-											>
+											<ToggleGroupItem value="Rental" className="px-4 py-2">
 												Rental
 											</ToggleGroupItem>
 										</ToggleGroup>
-										{((field.state.meta.isTouched && field.state.meta.errors) ||
+										{((field.state.meta.isTouched &&
+											field.state.meta.errors) ||
 											formErrors.secondaryType) && (
-											<span className="text-red-600 text-sm">
+											<span className="mt-1 block text-red-600 text-sm">
 												{formErrors.secondaryType
-													? "Please select a secondary transaction type."
+													? "Please select a secondary market type."
 													: Array.isArray(field.state.meta.errors)
 														? field.state.meta.errors[0]
 														: field.state.meta.errors}
@@ -498,148 +627,201 @@ export function NewTransactionForm() {
 								)}
 							</form.Field>
 						)}
-						<form.Field
-							name="transactionDate"
-							validators={{
-								onChange: (value) =>
-									!value ? "Please select a transaction date." : undefined,
-							}}
-						>
-							{(field) => (
-								<div className="mb-4">
-									<label
-										className="mb-1 block font-medium"
-										htmlFor="transactionDate-picker"
-									>
-										Transaction Date
-									</label>
-									<Popover>
-										<PopoverTrigger asChild>
-											<Button
-												variant="outline"
-												className={cn(
-													"w-full justify-start text-left font-normal",
-													!field.state.value && "text-muted-foreground",
-												)}
-												id="transactionDate-picker"
-												aria-label="Select transaction date"
-											>
-												{field.state.value
-													? new Date(field.state.value).toLocaleDateString()
-													: "Pick a date"}
-											</Button>
-										</PopoverTrigger>
-										<PopoverContent className="w-auto p-0" align="start">
-											<Calendar
-												mode="single"
-												selected={
-													field.state.value
-														? new Date(field.state.value)
-														: new Date()
-												}
-												onSelect={(date) =>
-													field.handleChange(
-														date ? date.toISOString().slice(0, 10) : "",
-													)
-												}
-												initialFocus
-											/>
-										</PopoverContent>
-									</Popover>
-									{field.state.meta.isTouched && field.state.meta.errors && (
-										<span className="text-red-600 text-sm">
-											{Array.isArray(field.state.meta.errors)
-												? field.state.meta.errors[0]
-												: field.state.meta.errors}
-										</span>
-									)}
-								</div>
-							)}
-						</form.Field>
-					</>
-				);
-			case 1:
-				return (
-					<>
-						{/* Transaction Price/Rent based on market and transaction type */}
-						{form.state.values.marketType === "Primary" ||
-						(form.state.values.marketType === "Secondary" &&
-							form.state.values.transactionType === "Sale") ? (
+						{/* Transaction Type (Sale/Rental) - Now only for Primary Market */}
+						{(form.state.values.marketType === "Primary") && (
 							<form.Field
-								name="totalPrice"
+								name="transactionType"
 								validators={{
-									onChange: (input: string | { value: string }) => {
-										const value =
-											typeof input === "string"
-												? input
-												: input && typeof input.value === "string"
-													? input.value
-													: "";
-										if (!value || value === "0")
-											return "This field is required";
-										const numValue = Number(value);
-										if (Number.isNaN(numValue) || numValue <= 0)
-											return "Price must be greater than 0";
-										return undefined;
-									},
+									onChange: (value) => !value ? "Please select a transaction type." : undefined,
+								}}
+							>
+								{(field) => (
+									<div className="mb-4">
+										<label className="mb-1 block font-medium">
+											Transaction Type <span className="text-red-500">*</span>
+										</label>
+										<ToggleGroup
+											type="single"
+											value={field.state.value} // Should be "Sale" when marketType is "Primary"
+											onValueChange={(val) => { // val should be "Sale"
+												if (val) {
+													field.handleChange(val);
+													setFormErrors((prev) => ({ ...prev, transactionType: false }));
+													// Reset price fields when type changes
+													form.setFieldValue('totalPrice', '');
+													form.setFieldValue('annualRent', '');
+												}
+											}}
+											className="flex flex-row gap-2"
+										>
+											{/* Primary market is always Sale, so only show Sale option and it's auto-selected */}
+											<ToggleGroupItem value="Sale" className="px-4 py-2">Sale</ToggleGroupItem>
+										</ToggleGroup>
+										{((field.state.meta.isTouched && field.state.meta.errors) || formErrors.transactionType) && (
+											<span className="mt-1 block text-red-600 text-sm">
+												{formErrors.transactionType
+													? "Please select a transaction type."
+													: Array.isArray(field.state.meta.errors)
+														? field.state.meta.errors[0]
+														: field.state.meta.errors}
+											</span>
+										)}
+									</div>
+								)}
+							</form.Field>
+						)}
+					</div>
+				);
+			case 1: // Property Details
+				return (
+					<div>
+						<h2 className="mb-4 font-semibold text-xl text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)]">
+							Property Details
+						</h2>
+						<div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+							<form.Field
+								name="transactionDate"
+								validators={{
+									onChange: ({ value }: { value: string }) =>
+										!value ? "Transaction date is required." : undefined,
+								}}
+							>
+								{(field: AnyFieldApi) => (
+									<div className="mb-4">
+										<label className="mb-1 block font-medium">
+											Transaction Date <span className="text-red-500">*</span>
+										</label>
+										<Popover>
+											<PopoverTrigger asChild>
+												<Button
+													variant="outline"
+													className={cn(
+														"w-full justify-start text-left font-normal",
+														!field.state.value && "text-muted-foreground",
+													)}
+												>
+													<CalendarIcon className="mr-2 h-4 w-4" />
+													{field.state.value ? (
+														new Date(field.state.value).toLocaleDateString()
+													) : (
+														<span>Pick a date</span>
+													)}
+												</Button>
+											</PopoverTrigger>
+											<PopoverContent className="w-auto p-0">
+												<Calendar
+													mode="single"
+													selected={
+														field.state.value
+															? new Date(field.state.value)
+															: undefined
+													}
+													onSelect={(date) =>
+														field.handleChange(
+															date ? date.toISOString().slice(0, 10) : "",
+														)
+													}
+													initialFocus
+												/>
+											</PopoverContent>
+										</Popover>
+										{field.state.meta.isTouched && field.state.meta.errors && (
+											<span className="text-red-600 text-sm">
+												{field.state.meta.errors}
+											</span>
+										)}
+									</div>
+								)}
+							</form.Field>
+
+							<form.Field
+								name="propertyName"
+								validators={{
+									onChange: ({ value }: { value: string }) =>
+										!value ? "Property name is required." : undefined,
+								}}
+							>
+								{(fieldApiInstance) => (
+									<FormField
+										label="Property Name"
+										field={fieldApiInstance}
+										required
+									/>
+								)}
+							</form.Field>
+							<form.Field
+								name="propertyType"
+								validators={{
+									onChange: (value: string) =>
+										!value ? "Property type is required." : undefined,
 								}}
 							>
 								{(field: AnyFieldApi) => {
-									const fieldValue = String(field.state.value || "");
+									const propertyTypes = ["Condominium", "Apartment", "Terrace House", "Semi-D", "Bungalow", "Commercial Lot", "Office Space", "Industrial", "Land"];
+									// const [inputValue, setInputValue] = useState(field.state.value || ""); // Removed local state
+									const suggestions = propertyTypes.filter(type => type.toLowerCase().includes(propertyTypeInputValue.toLowerCase()));
+
 									return (
-										<div className="mb-6 space-y-2">
-											<label
-												className="block font-medium text-gray-700 text-sm"
-												htmlFor="primary-price"
-											>
-												{form.state.values.marketType === "Primary"
-													? "Transaction Price"
-													: "Total Price"}{" "}
-												<span className="text-red-500">*</span>
-											</label>
-											<div className="relative rounded-md shadow-sm">
-												<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3" />
-												<input
-													id="primary-price"
-													type="number"
-													className="block w-full rounded-md border border-gray-300 p-2 pr-12 pl-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-													placeholder="Enter price"
-													value={fieldValue}
-													onChange={(e) => field.handleChange(e.target.value)}
-													onBlur={field.handleBlur}
-												/>
-												<span className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 sm:text-sm">
-													MYR
-												</span>
-											</div>
-											{field.state.meta.isTouched &&
-												field.state.meta.errors && (
-													<span className="text-red-600 text-sm">
-														{Array.isArray(field.state.meta.errors)
-															? field.state.meta.errors[0]
-															: field.state.meta.errors}
-													</span>
-												)}
+										<div className="relative mb-4">
+											<label className="mb-1 block font-medium">Property Type <span className="text-red-500">*</span></label>
+											<Input
+												type="text"
+												value={propertyTypeInputValue}
+												onChange={(e) => {
+													setPropertyTypeInputValue(e.target.value);
+													field.handleChange(e.target.value); // Update form state immediately
+													setShowPropertyTypeSuggestions(true);
+												}}
+												onFocus={() => setShowPropertyTypeSuggestions(true)}
+												onBlur={() => setTimeout(() => setShowPropertyTypeSuggestions(false), 150)} // Delay to allow click on suggestion
+												placeholder="e.g., Condominium"
+											/>
+											{showPropertyTypeSuggestions && suggestions.length > 0 && propertyTypeInputValue && (
+												<Card className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto">
+													{suggestions.map(type => (
+														<div
+															key={type}
+															className="p-2 hover:bg-accent cursor-pointer"
+															onMouseDown={() => { // Use onMouseDown to beat onBlur
+																setPropertyTypeInputValue(type);
+																field.handleChange(type);
+																setShowPropertyTypeSuggestions(false);
+															}}
+														>
+															{type}
+														</div>
+													))}
+												</Card>
+											)}
+											{field.state.meta.isTouched && field.state.meta.errors && (
+												<span className="text-red-600 text-sm">{field.state.meta.errors}</span>
+											)}
 										</div>
 									);
 								}}
 							</form.Field>
-						) : (
 							<form.Field
-								name="annualRent"
+								name="address"
+							>
+								{(fieldApiInstance) => (
+									<FormField
+										label="Address"
+										field={fieldApiInstance}
+									/>
+								)}
+							</form.Field>
+						</div>
+
+						{/* Conditional rendering for Total Price */}
+						{(form.state.values.marketType === "Primary" || (form.state.values.marketType === "Secondary" && form.state.values.secondaryType === "Sale")) && (
+							<form.Field
+								name="totalPrice"
 								validators={{
-									onChange: (input: string | { value: string }) => {
-										const value =
-											typeof input === "string"
-												? input
-												: input && typeof input.value === "string"
-													? input.value
-													: "";
-										if (!value || value === "0")
-											return "This field is required";
-										const numValue = Number(value);
-										if (Number.isNaN(numValue) || numValue <= 0)
-											return "Rent must be greater than 0";
+									onChange: (value: string) => {
+										const parsedValue = parseCurrency(value);
+										if (parsedValue <= 0) {
+											return "Total price must be greater than 0.";
+										}
 										return undefined;
 									},
 								}}
@@ -647,470 +829,450 @@ export function NewTransactionForm() {
 								{(field: AnyFieldApi) => {
 									const fieldValue = String(field.state.value || "");
 									return (
-										<div className="mb-6 space-y-2">
-											<label
-												className="block font-medium text-gray-700 text-sm"
-												htmlFor="secondary-rent"
-											>
-												Annual Rent <span className="text-red-500">*</span>
+										<div className="mb-4">
+											<label className="mb-1 block font-medium">
+												Total Price (MYR) <span className="text-red-500">*</span>
 											</label>
-											<div className="relative rounded-md shadow-sm">
-												<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-													<span className="text-gray-500 sm:text-sm">MYR</span>
-												</div>
-												<input
-													id="secondary-annual-rent"
-													type="text"
-													className="block w-full rounded-md border border-gray-300 p-2 pr-12 pl-14 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-													placeholder="0"
-													value={formatCurrency(fieldValue)}
-													onChange={(e) => {
-														const rawValue = e.target.value.replace(
-															/[^0-9]/g,
-															"",
-														);
-														field.handleChange(rawValue);
-													}}
-													onBlur={field.handleBlur}
-													aria-invalid={
-														field.state.meta.isTouched &&
-														!!field.state.meta.errors
-													}
-												/>
-											</div>
-											{field.state.meta.isTouched &&
-												field.state.meta.errors && (
-													<p className="mt-1 text-red-600 text-sm">
-														{Array.isArray(field.state.meta.errors)
-															? field.state.meta.errors[0]
-															: field.state.meta.errors}
-													</p>
-												)}
-											<p className="mt-1 text-gray-500 text-sm">
-												Total annual rent for this rental property
-											</p>
+											<Input
+												type="text"
+												value={fieldValue}
+												onBlur={field.handleBlur}
+												onChange={(e) => {
+													const rawValue = e.target.value;
+													const formatted = formatCurrency(rawValue);
+													field.handleChange(formatted); // Store formatted value
+												}}
+												placeholder="e.g., 1,200,000"
+											/>
+											{field.state.meta.isTouched && field.state.meta.errors && (
+												<span className="text-red-600 text-sm">{field.state.meta.errors}</span>
+											)}
 										</div>
 									);
 								}}
 							</form.Field>
 						)}
-					</>
-				);
-			case 2:
-				return (
-					<>
-						{/* Property Details */}
-						<div className="mb-4 border-gray-200 border-b pb-4">
-							<h3 className="mb-3 font-medium text-lg">Property Details</h3>
 
-							<form.Field name="propertyName">
-								{(field: AnyFieldApi) => (
-									<FormField label="Property Name/Address" field={field} />
-								)}
-							</form.Field>
-
-							<form.Field name="propertyType">
+						{/* Conditional rendering for Annual Rent */}
+						{form.state.values.transactionType === "Rental" && (
+							<form.Field
+								name="annualRent"
+								validators={{
+									onChange: (value: string) => {
+										const parsedValue = parseCurrency(value);
+										if (form.state.values.transactionType === "Rental" && parsedValue <= 0) {
+											return "Annual rent must be greater than 0 for rental transactions.";
+										}
+										return undefined;
+									},
+								}}
+							>
 								{(field: AnyFieldApi) => {
-									// Static suggestions for demonstration; in production, fetch from backend or state
-									const suggestions = [
-										"Bungalow",
-										"Semi-D",
-										"Condo",
-										"Double Storey Terrace",
-										"Apartment",
-										"Townhouse",
-										"Serviced Residence",
-									];
-									const inputValue = field.state.value?.toLowerCase() || "";
-									const filteredSuggestions = suggestions.filter(
-										(s) => s.toLowerCase().includes(inputValue) && inputValue,
-									);
+									const fieldValue = String(field.state.value || "");
 									return (
-										<div className="relative mb-4">
-											<label
-												className="mb-1 block font-medium"
-												htmlFor="property-type-field"
-											>
-												Property Type
-												<span className="ml-2 cursor-pointer">
-													<span
-														title="Recommended: e.g. Bungalow, Semi-D, Condo, Double Storey Terrace"
-														className="text-gray-400"
-													>
-														&#9432;
-													</span>
-												</span>
+										<div className="mb-4">
+											<label className="mb-1 block font-medium">
+												Annual Rent (MYR) <span className="text-red-500">*</span>
 											</label>
-											<input
-												id="property-type-field"
+											<Input
 												type="text"
-												autoComplete="off"
-												className="block w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-												placeholder="e.g. Bungalow, Semi-D, Condo, Double Storey Terrace"
-												value={field.state.value}
+												value={fieldValue}
+												onBlur={field.handleBlur}
 												onChange={(e) => {
-													field.handleChange(e.target.value);
-													setShowPropertyTypeSuggestions(true);
+													const rawValue = e.target.value;
+													const formatted = formatCurrency(rawValue);
+													field.handleChange(formatted); // Store formatted value
 												}}
-												onFocus={() => setShowPropertyTypeSuggestions(true)}
-												onBlur={() => {
-													// Delay hiding suggestions to allow click to register
-													setTimeout(
-														() => setShowPropertyTypeSuggestions(false),
-														200,
-													);
-													field.handleBlur();
-												}}
+												placeholder="e.g., 24,000"
 											/>
-											{/* Auto-suggestion dropdown */}
-											{filteredSuggestions.length > 0 &&
-												showPropertyTypeSuggestions && (
-													<div className="absolute z-10 mt-1 w-full rounded-md border border-gray-300 bg-white shadow-lg">
-														{filteredSuggestions.map((s: string) => (
-															<div
-																key={s}
-																className="cursor-pointer px-3 py-2 hover:bg-blue-100"
-																onMouseDown={() => {
-																	field.handleChange(s);
-																	setShowPropertyTypeSuggestions(false);
-																}}
-															>
-																{s}
-															</div>
-														))}
-													</div>
-												)}
+											{field.state.meta.isTouched && field.state.meta.errors && (
+												<span className="text-red-600 text-sm">{field.state.meta.errors}</span>
+											)}
 										</div>
 									);
 								}}
 							</form.Field>
-						</div>
-
-						{/* Client Information - Primary Fields (Always Visible) */}
-						<div className="mb-4 border-gray-200 border-b pb-4">
-							<h3 className="mb-3 font-medium text-lg">Client Information</h3>
-
+						)}
+					</div>
+				);
+			case 2: // Client Information
+				return (
+					<div>
+						<h2 className="mb-4 font-semibold text-xl text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)]">Client Information</h2>
+						<div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
 							<form.Field
 								name="clientName"
 								validators={{
-									onChange: (value: string) =>
-										!value ? "Client name is required" : undefined,
+									onChange: ({ value }: { value: string }) =>
+										!value ? "Client Name is required." : undefined,
 								}}
 							>
-								{(field: AnyFieldApi) => (
-									<FormField label="Client Name" field={field} />
+								{(fieldApiInstance) => (
+									<FormField
+										label="Client Name"
+										field={fieldApiInstance}
+										required
+									/>
 								)}
 							</form.Field>
-
-							<form.Field
-								name="clientPhone"
-								validators={{
-									onChange: (value: string) => {
-										if (!value) return "Client phone number is required";
-										if (!/^\+?[0-9]{8,15}$/.test(value.replace(/[\s-]/g, ""))) {
-											return "Please enter a valid phone number";
-										}
-										return undefined;
-									},
-								}}
-							>
-								{(field: AnyFieldApi) => (
-									<FormField label="Client Phone Number" field={field} />
-								)}
-							</form.Field>
-
 							<form.Field
 								name="clientEmail"
 								validators={{
-									onChange: (value: string) => {
-										if (!value) return "Client email is required";
-										if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-											return "Please enter a valid email address";
+									onChange: ({ value }: { value: string }) => {
+										if (!value) return "Client Email is required.";
+										if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(value)) {
+											return "Invalid email address.";
 										}
 										return undefined;
 									},
 								}}
 							>
-								{(field: AnyFieldApi) => (
-									<FormField label="Client Email" field={field} type="email" />
+								{(fieldApiInstance) => (
+									<FormField
+										label="Client Email"
+										field={fieldApiInstance}
+										type="email"
+										required
+									/>
 								)}
 							</form.Field>
-
-							{/* Toggle for secondary fields */}
-							<div className="mb-4">
-								<label className="flex cursor-pointer items-center gap-2">
-									<input
-										type="checkbox"
-										checked={showClientSecondaryFields}
-										onChange={(e) =>
-											setShowClientSecondaryFields(e.target.checked)
-										}
-										className="accent-blue-500"
+							<form.Field
+								name="clientPhone"
+							>
+								{(fieldApiInstance) => (
+									<FormField
+										label="Client Phone"
+										field={fieldApiInstance}
+										type="tel"
 									/>
-									<span className="text-sm">Show more client details</span>
-								</label>
-							</div>
-							{showClientSecondaryFields && (
-								<>
-									<form.Field name="clientIdNumber">
-										{(field: AnyFieldApi) => (
-											<FormField label="Client ID Number" field={field} />
-										)}
-									</form.Field>
-									<form.Field name="clientAcquisitionSource">
-										{(field: AnyFieldApi) => (
-											<div className="mb-4">
-												<label
-													className="mb-1 block font-medium"
-													htmlFor="client-acquisition-source"
-												>
-													Client Acquisition Source
-												</label>
-												<select
-													id="client-acquisition-source"
-													value={field.state.value}
-													onChange={(e) => field.handleChange(e.target.value)}
-													className="block w-full rounded border p-2"
-												>
-													<option value="">Select Source</option>
-													<option value="Social Media">Social Media</option>
-													<option value="Referral">Referral</option>
-													<option value="Direct Inquiry">Direct Inquiry</option>
-													<option value="Other">Other</option>
-												</select>
-											</div>
-										)}
-									</form.Field>
-								</>
-							)}
-						</div>
-						{/* Payment Method Section */}
-						<div className="mb-4 border-gray-200 border-b pb-4">
-							<h3 className="mb-3 font-medium text-lg">Payment Details</h3>
-							<form.Field name="paymentMethod">
-								{(field: AnyFieldApi) => (
-									<div className="mb-4">
-										<label
-											className="mb-1 block font-medium"
-											htmlFor="payment-method"
-										>
-											Payment Method
-										</label>
-										<select
-											id="payment-method"
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											className="block w-full rounded border p-2"
-										>
-											<option value="">Select Payment Method</option>
-											<option value="Bank Financing">Bank Financing</option>
-											<option value="Full Cash">Full Cash</option>
-										</select>
+								)}
+							</form.Field>
+							<form.Field
+								name="clientIdNumber"
+							>
+								{(fieldApiInstance) => (
+									<FormField
+										label="Client ID Number"
+										field={fieldApiInstance}
+									/>
+								)}
+							</form.Field>
+							<form.Field name="clientAcquisitionSource">
+								{(field) => (
+									<div>
+										<Label htmlFor={field.name} className="mb-1 block font-medium">Client Acquisition Source</Label>
+										<Select onValueChange={field.handleChange} value={field.state.value}>
+											<SelectTrigger id={field.name}>
+												<SelectValue placeholder="Select source" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="Referral">Referral</SelectItem>
+												<SelectItem value="Online Ad">Online Ad</SelectItem>
+												<SelectItem value="Walk-in">Walk-in</SelectItem>
+												<SelectItem value="Existing Client">Existing Client</SelectItem>
+												<SelectItem value="Social Media">Social Media</SelectItem>
+												<SelectItem value="Property Portal">Property Portal</SelectItem>
+												<SelectItem value="Other">Other</SelectItem>
+											</SelectContent>
+										</Select>
 									</div>
 								)}
 							</form.Field>
-							{form.state.values.paymentMethod === "Bank Financing" && (
-								<form.Field name="bankName">
-									{(field: AnyFieldApi) => (
-										<FormField label="Bank Name" field={field} />
-									)}
-								</form.Field>
-							)}
 						</div>
-					</>
+					</div>
 				);
-			case 3:
+			case 3: // Co-Broking
 				return (
-					<>
-						<div className="mb-4 border-gray-200 border-b pb-4">
-							<h3 className="mb-3 font-medium text-lg">Property Ownership</h3>
-							<form.Field
-								name="ownerName"
-								validators={{
-									onChange: (v: string) =>
-										!v ? "Owner Name is required" : undefined,
-								}}
-							>
-								{(field: AnyFieldApi) => (
-									<FormField label="Owner Name" field={field} />
-								)}
-							</form.Field>
-						</div>
-
-						<div className="mb-4 border-gray-200 border-b pb-4">
-							<h3 className="mb-3 font-medium text-lg">
-								Co-Broking Information
-							</h3>
-							{/* Co-Broking Toggle */}
-							<div className="mb-4">
-								<label className="flex cursor-pointer items-center gap-2">
+					<div>
+						<h2 className="mb-4 font-semibold text-xl text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)]">Co-Broking Details</h2>
+						<form.Field name="coBrokingEnabled">
+							{(field) => (
+								<div className="mb-4 flex items-center">
 									<input
 										type="checkbox"
+										id="coBrokingEnabled"
 										checked={localCoBrokingEnabled}
 										onChange={(e) => {
-											// Update local state for immediate UI response
-											const newValue = e.target.checked;
-											setLocalCoBrokingEnabled(newValue);
-
-											// Update form state
-											form.setFieldValue("coBrokingEnabled", newValue);
-
-											// Reset co-broking fields if disabling co-broking
-											if (!newValue) {
-												form.setFieldValue("coBrokingAgentName", "");
-												form.setFieldValue("coBrokingAgentRen", "");
-												form.setFieldValue("coBrokingAgencyName", "");
-												form.setFieldValue("coBrokingAgentContact", "");
-												form.setFieldValue("coBrokingDirection", "seller");
-												setLocalCoBrokingDirection("seller"); // Reset local state too
+											const checked = e.target.checked;
+											setLocalCoBrokingEnabled(checked);
+											field.handleChange(checked);
+											if (!checked) {
+												// Clear co-broking fields if disabled
+												form.setFieldValue('coBrokingDirection', 'seller');
+												form.setFieldValue('coBrokingAgentName', '');
+												form.setFieldValue('coBrokingAgentRen', '');
+												form.setFieldValue('coBrokingAgencyName', '');
+												form.setFieldValue('coBrokingAgentContact', '');
 											}
 										}}
-										className="accent-blue-500"
+										className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 									/>
-									<span className="text-sm">Co-Broking Transaction</span>
-								</label>
-							</div>
-
-							{/* Co-Broking Fields (conditional) - Using local state for immediate rendering */}
-							{localCoBrokingEnabled && (
-								<div className="border-blue-100 border-l-2 pl-4">
-									<form.Field name="coBrokingAgentName">
-										{(field: AnyFieldApi) => (
-											<FormField label="Co-Broking Agent Name" field={field} />
-										)}
-									</form.Field>
-									<form.Field name="coBrokingAgentRen">
-										{(field: AnyFieldApi) => (
-											<FormField
-												label="Co-Broking Agent REN Number"
-												field={field}
-											/>
-										)}
-									</form.Field>
-									<form.Field name="coBrokingAgencyName">
-										{(field: AnyFieldApi) => (
-											<FormField label="Co-Broking Agency Name" field={field} />
-										)}
-									</form.Field>
-									<form.Field
-										name="coBrokingAgentContact"
-										validators={{
-											onChange: (value: any) => {
-												// First check if value is a string to avoid the "value.replace is not a function" error
-												if (value === null || value === undefined)
-													return undefined;
-												if (typeof value !== "string")
-													return "Please enter a valid phone number";
-
-												// Now we can safely use string methods
-												if (value.trim() === "") return undefined; // Optional field
-												if (
-													!/^\+?[0-9]{8,15}$/.test(value.replace(/[\s-]/g, ""))
-												) {
-													return "Please enter a valid phone number";
-												}
-												return undefined;
-											},
-										}}
-									>
-										{(field: AnyFieldApi) => (
-											<FormField
-												label="Co-Broking Agent Contact Number"
-												field={field}
-											/>
-										)}
-									</form.Field>
-									{/* Co-Broking Direction Radio */}
-									<div className="mb-4">
-										<label className="mb-1 block font-medium">
-											Co-Broking Direction
-										</label>
-										<div className="flex gap-4">
-											<label className="flex items-center gap-1">
-												<input
-													type="radio"
-													name="coBrokingDirection"
-													value="seller"
-													checked={localCoBrokingDirection === "seller"}
-													onChange={() => {
-														// Update local state for immediate UI response
-														setLocalCoBrokingDirection("seller");
-														// Update form state
-														form.setFieldValue("coBrokingDirection", "seller");
-													}}
-													className="accent-blue-500"
-												/>
-												I represent the Seller/Landlord
-											</label>
-											<label className="flex items-center gap-1">
-												<input
-													type="radio"
-													name="coBrokingDirection"
-													value="buyer"
-													checked={localCoBrokingDirection === "buyer"}
-													onChange={() => {
-														// Update local state for immediate UI response
-														setLocalCoBrokingDirection("buyer");
-														// Update form state
-														form.setFieldValue("coBrokingDirection", "buyer");
-													}}
-													className="accent-blue-500"
-												/>
-												I represent the Buyer/Tenant
-											</label>
-										</div>
-									</div>
+									<label htmlFor="coBrokingEnabled" className="ml-2 block text-sm font-medium">
+										Enable Co-Broking
+									</label>
 								</div>
 							)}
-						</div>
-					</>
+						</form.Field>
+
+						{localCoBrokingEnabled && (
+							<div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+								<form.Field name="coBrokingDirection">
+									{(field) => (
+										<div className="mb-4">
+											<label className="mb-1 block font-medium">Co-Broking Direction</label>
+											<ToggleGroup
+												type="single"
+												value={localCoBrokingDirection}
+												onValueChange={(value: "seller" | "buyer") => {
+													if (value) {
+														setLocalCoBrokingDirection(value);
+														field.handleChange(value);
+													}
+												}}
+												className="flex flex-row gap-2"
+											>
+												<ToggleGroupItem value="seller">Representing Seller</ToggleGroupItem>
+												<ToggleGroupItem value="buyer">Representing Buyer</ToggleGroupItem>
+											</ToggleGroup>
+										</div>
+									)}
+								</form.Field>
+								<form.Field
+									name="coBrokingAgentName"
+									validators={{
+										onChange: ({ value }: { value: string }) =>
+											localCoBrokingEnabled && !value ? "Co-Broking Agent Name is required." : undefined,
+									}}
+								>
+									{(fieldApiInstance) => (
+										<FormField
+											label="Co-Broking Agent Name"
+											field={fieldApiInstance}
+											required={localCoBrokingEnabled}
+										/>
+									)}
+								</form.Field>
+								<form.Field
+									name="coBrokingAgentRen"
+								>
+									{(fieldApiInstance) => (
+										<FormField
+											label="Co-Broking Agent REN"
+											field={fieldApiInstance}
+										/>
+									)}
+								</form.Field>
+								<form.Field
+									name="coBrokingAgencyName"
+								>
+									{(fieldApiInstance) => (
+										<FormField
+											label="Co-Broking Agency Name"
+											field={fieldApiInstance}
+										/>
+									)}
+								</form.Field>
+								<form.Field
+									name="coBrokingAgentContact"
+								>
+									{(fieldApiInstance) => (
+										<FormField
+											label="Co-Broking Agent Contact"
+											field={fieldApiInstance}
+										/>
+									)}
+								</form.Field>
+							</div>
+						)}
+					</div>
 				);
-			case 4:
-				return (
-					<>
-						{/* Commission calculation section */}
-						<div className="mb-6 text-muted-foreground italic">
-							Commission summary will be shown here once commission logic is
-							implemented.
-						</div>
-						<form.Field name="totalPrice">
-							{(field: AnyFieldApi) => (
-								<FormField label="Total Price" field={field} type="number" />
-							)}
-						</form.Field>
-						<form.Field name="annualRent">
-							{(field: AnyFieldApi) => (
-								<FormField label="Annual Rent" field={field} type="number" />
-							)}
-						</form.Field>
-						<form.Field name="commissionValue">
-							{(field: AnyFieldApi) => (
-								<FormField
-									label="Commission Value"
-									field={field}
-									type="number"
-								/>
-							)}
-						</form.Field>
-						<form.Field name="commissionType">
-							{(field: AnyFieldApi) => (
-								<FormField label="Commission Type" field={field} />
-							)}
-						</form.Field>
-						<form.Field name="commissionPercentage">
-							{(field: AnyFieldApi) => (
-								<FormField
-									label="Commission Percentage"
-									field={field}
-									type="number"
-								/>
-							)}
-						</form.Field>
-					</>
-				);
+			case 4: { // Commission Details
+        const { commissionType, totalPrice, annualRent, transactionType, commissionPercentage: currentCommissionPercentage, commissionValue: currentCommissionValue } = form.state.values;
+        const isSaleTransaction = transactionType === "Sale" || (transactionType === "Resale/Subsale" && form.state.values.secondaryType === "Sale");
+        const basePriceForCommission = isSaleTransaction ? parseCurrency(totalPrice) : parseCurrency(annualRent);
+
+        const defaultCommissionPercent = isSaleTransaction ? 3 : 100; // 100% for rental means 1 month rent
+
+        const currentAgentTier = agentTiers[agentTierKey] ?? agentTiers["advisor"];
+        let calculatedCommissionValue = 0;
+
+        if (commissionType === 'Percentage') {
+            const percentage = parseFloat(currentCommissionPercentage || "0");
+            if (!Number.isNaN(percentage) && basePriceForCommission > 0) {
+                 calculatedCommissionValue = (basePriceForCommission * percentage) / 100;
+            }
+        } else if (commissionType === 'Fixed Amount') {
+            calculatedCommissionValue = parseCurrency(currentCommissionValue || "0");
+        }
+
+        const baseCommission = (calculatedCommissionValue * currentAgentTier.overridingPercentage) / 100;
+        const leadershipBonus = (calculatedCommissionValue * currentAgentTier.leadershipBonus) / 100;
+        const totalAgentCommission = baseCommission + leadershipBonus;
+        const agencyShare = Math.max(
+   0,
+   calculatedCommissionValue - totalAgentCommission
+ );
+        const isCommissionOverage = totalAgentCommission > agencyShare && calculatedCommissionValue > 0;
+
+
+        return (
+            <div>
+                <h2 className="mb-4 font-semibold text-xl text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)]">Commission Details</h2>
+                <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
+                    <div className="space-y-4">
+                        <form.Field
+                            name="commissionType"
+                            validators={{
+                                onChange: (value) => !value ? "Please select a commission type." : undefined,
+                            }}
+                        >
+                            {(field) => (
+                                <div>
+                                    <label className="mb-1 block font-medium">Commission Type <span className="text-red-500">*</span></label>
+                                    <ToggleGroup
+                                        type="single"
+                                        value={field.state.value}
+                                        onValueChange={(value: string) => {
+                                            if (value) {
+                                                field.handleChange(value);
+                                                form.setFieldValue('commissionPercentage', '');
+                                                form.setFieldValue('commissionValue', '');
+                                            }
+                                        }}
+                                        className="flex flex-row gap-2"
+                                    >
+                                        <ToggleGroupItem value="Percentage" aria-label="Percentage Commission" className="px-4 py-2">Percentage</ToggleGroupItem>
+                                        <ToggleGroupItem value="Fixed Amount" aria-label="Fixed Amount Commission" className="px-4 py-2">Fixed Amount</ToggleGroupItem>
+                                    </ToggleGroup>
+                                    {field.state.meta.isTouched && field.state.meta.errors && (
+                                        <span className="mt-1 block text-red-600 text-sm">{field.state.meta.errors}</span>
+                                    )}
+                                </div>
+                            )}
+                        </form.Field>
+
+                        {form.state.values.commissionType === 'Percentage' && (
+                            <form.Field
+                                name="commissionPercentage"
+                                validators={{
+                                    onChange: (value: string) => {
+                                        if (form.state.values.commissionType === 'Percentage' && !value) {
+                                            return "Commission percentage is required.";
+                                        }
+                                        const percentage = parseFloat(value);
+                                        if (Number.isNaN(percentage) || percentage <= 0 || percentage > 100) {
+                                            return "Must be between 0.01 and 100.";
+                                        }
+                                        return undefined;
+                                    },
+                                }}
+                            >
+                                {(field: AnyFieldApi) => (
+                                    <div>
+                                        <label className="mb-1 block font-medium" htmlFor={field.name}>
+                                            Commission Percentage (%) <span className="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            id={field.name}
+                                            type="text"
+                                            value={field.state.value || ""}
+                                            onBlur={field.handleBlur}
+                                            onChange={(e) => {
+                                                const rawValue = e.target.value;
+                                                let cleanedValue = rawValue.replace(/[^0-9.]/g, '');
+                                                const parts = cleanedValue.split('.');
+                                                if (parts.length > 2) {
+                                                    cleanedValue = `${parts[0]}.${parts.slice(1).join('')}`;
+                                                }
+                                                field.handleChange(cleanedValue);
+                                            }}
+                                            placeholder="e.g., 3 for 3%"
+                                        />
+                                        {field.state.meta.isTouched && field.state.meta.errors && (
+                                            <span className="mt-1 block text-red-600 text-sm">{field.state.meta.errors}</span>
+                                        )}
+                                        <p className="mt-1 text-[oklch(0.552_0.016_285.938)] dark:text-[oklch(0.705_0.015_286.067)] text-sm">
+                                            {isSaleTransaction
+                                                ? `Suggested: ${defaultCommissionPercent}% of property price`
+                                                : `Suggested: ${defaultCommissionPercent}% of annual rent (i.e. 1 month rent)`}
+                                        </p>
+                                    </div>
+                                )}
+                            </form.Field>
+                        )}
+
+                        {form.state.values.commissionType === 'Fixed Amount' && (
+                            <form.Field
+                                name="commissionValue"
+                                validators={{
+                                    onChange: (value: string) => {
+                                        if (form.state.values.commissionType === 'Fixed Amount' && !value) {
+                                            return "Commission value is required.";
+                                        }
+                                        const parsedValue = parseCurrency(value);
+                                        if (parsedValue <= 0) {
+                                            return "Commission value must be greater than 0.";
+                                        }
+                                        return undefined;
+                                    },
+                                }}
+                            >
+                                {(field: AnyFieldApi) => {
+                                    const fieldValue = String(field.state.value || "");
+                                    return (
+                                        <div>
+                                            <label className="mb-1 block font-medium" htmlFor={field.name}>
+                                                Commission Value (MYR) <span className="text-red-500">*</span>
+                                            </label>
+                                            <Input
+                                                id={field.name}
+                                                type="text"
+                                                value={fieldValue} // Display raw or formatted value
+                                                onBlur={field.handleBlur}
+                                                onChange={(e) => {
+                                                    const rawValue = e.target.value;
+                                                    const formatted = formatCurrency(rawValue); // Format for storage
+                                                    field.handleChange(formatted);
+                                                }}
+                                                placeholder="e.g., 10,000"
+                                            />
+                                            {field.state.meta.isTouched && field.state.meta.errors && (
+                                                <span className="mt-1 block text-red-600 text-sm">{field.state.meta.errors}</span>
+                                            )}
+                                        </div>
+                                    );
+                                }}
+                            </form.Field>
+                        )}
+                    </div>
+
+                    <div className="bg-gray-50 dark:bg-[var(--color-sidebar-accent)]/10 p-4 rounded-lg border dark:border-[var(--color-sidebar-border)]">
+                        <h4 className="font-semibold mb-3 text-lg">Commission Breakdown</h4>
+                        <div className="space-y-2 text-sm">
+                            <p>Agent Tier: <span className="font-semibold">{currentAgentTier.name}</span></p>
+                            <hr className="my-2 border-gray-200 dark:border-gray-600"/>
+                            <p>Total Potential Commission: <span className="font-semibold">{formatCurrency(calculatedCommissionValue)}</span></p>
+                             <hr className="my-2 border-gray-200 dark:border-gray-600"/>
+                            <p>Base ({currentAgentTier.overridingPercentage}%): <span className="font-semibold">{formatCurrency(baseCommission)}</span></p>
+                            <p>Leadership Bonus ({currentAgentTier.leadershipBonus}%): <span className="font-semibold">{formatCurrency(leadershipBonus)}</span></p>
+                            <hr className="my-2 border-gray-200 dark:border-gray-600"/>
+                            <p className="text-base">Total Agent Payout: <span className="font-bold text-green-600 dark:text-green-500">{formatCurrency(totalAgentCommission)}</span></p>
+                            <p>Agency Share: <span className="font-semibold">{formatCurrency(agencyShare)}</span></p>
+                            {isCommissionOverage && (
+                                <p className="mt-2 text-sm text-red-500 font-semibold">
+                                    Warning: Agent payout exceeds potential commission.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 			case 5:
 				return (
-					<>
+					<div>
+						<h2 className="mb-4 font-semibold text-xl text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)]">Documents</h2>
 						<div className="mb-4">
 							<label className="mb-1 block font-medium">
 								Upload Documents (not yet implemented)
@@ -1120,21 +1282,26 @@ export function NewTransactionForm() {
 								Document upload coming soon.
 							</p>
 						</div>
-					</>
+					</div>
 				);
 			case 6:
 				return (
-					<>
-						<h3 className="mb-2 font-semibold">Review & Submit</h3>
-						<pre className="mb-2 rounded bg-muted p-2 text-xs">
-							{JSON.stringify(form.state.values, null, 2)}
-						</pre>
+					<div>
+						<h2 className="mb-4 font-semibold text-xl text-[oklch(0.141_0.005_285.823)] dark:text-[oklch(0.985_0_0)]">Review & Submit</h2>
+						<h3 className="mb-2 font-semibold">Form Data:</h3>
+						<Card className="p-4 bg-gray-50 dark:bg-gray-800 max-h-96 overflow-y-auto">
+							<pre className="text-xs whitespace-pre-wrap break-all">
+								{JSON.stringify(form.state.values, null, 2)}
+							</pre>
+						</Card>
 						<form.Field name="notes">
 							{(field: AnyFieldApi) => (
-								<FormField label="Notes" field={field} />
+								<div className="mt-4">
+									<FormField label="Notes / Remarks" field={field} />
+								</div>
 							)}
 						</form.Field>
-					</>
+					</div>
 				);
 			default:
 				return null;
@@ -1142,97 +1309,111 @@ export function NewTransactionForm() {
 	}
 
 	return (
-		<form
-			className="mx-auto max-w-xl rounded-lg border bg-card p-6 text-card-foreground shadow-sm"
-			onSubmit={form.handleSubmit}
-		>
-			<h2 className="mb-4 font-semibold text-xl">
-				Transaction Form - Step {step + 1} of {STEPS.length}
-			</h2>
-			<div className="mb-2 font-medium text-lg">{STEPS[step]}</div>
-			{renderStep()}
-			<div className="mt-6 flex gap-2">
-				{step > 0 && (
-					<button
-						type="button"
-						className="rounded bg-gray-200 px-4 py-2"
-						onClick={() => setStep((s) => s - 1)}
-					>
-						Back
-					</button>
-				)}
-				{/* Next button for Step 1: only enabled if valid */}
-				{step === 0 && (
-					<button
-						type="button"
-						className={`rounded px-4 py-2 font-semibold ${form.state.values.marketType ? "bg-blue-600 text-white hover:bg-blue-700" : "cursor-not-allowed bg-gray-300 text-gray-500"}`}
-						onClick={() => {
-							// Validate market type selection
-							if (!form.state.values.marketType) {
-								// Set error for market type
-								setFormErrors((prev) => ({ ...prev, marketType: true }));
-								return;
-							}
-
-							// Validate the required fields based on market type
-							if (
-								form.state.values.marketType === "Primary" &&
-								!form.state.values.developerProject
-							) {
-								// Set error for developer project
-								setFormErrors((prev) => ({ ...prev, developerProject: true }));
-								return;
-							}
-
-							if (
-								form.state.values.marketType === "Secondary" &&
-								!form.state.values.secondaryType
-							) {
-								// Set error for secondary type
-								setFormErrors((prev) => ({ ...prev, secondaryType: true }));
-								return;
-							}
-							setStep((s) => s + 1);
-						}}
-						disabled={
-							!form.state.values.marketType ||
-							(form.state.values.marketType === "Primary" &&
-								!form.state.values.developerProject) ||
-							(form.state.values.marketType === "Secondary" &&
-								!form.state.values.secondaryType)
-						}
-						aria-disabled={
-							!form.state.values.marketType ||
-							(form.state.values.marketType === "Primary" &&
-								!form.state.values.developerProject) ||
-							(form.state.values.marketType === "Secondary" &&
-								!form.state.values.secondaryType)
-								? true
-								: undefined
-						}
-					>
-						Next
-					</button>
-				)}
-				{/* Next button for other steps */}
-				{step > 0 && step < STEPS.length - 1 && (
-					<button
-						type="button"
-						className="rounded bg-blue-600 px-4 py-2 text-white"
-						onClick={() => setStep((s) => s + 1)}
-					>
-						Next
-					</button>
-				)}
-				{step === STEPS.length - 1 && (
-					<button
-						type="submit"
-						className="rounded bg-green-600 px-4 py-2 text-white"
-					>
-						Submit
-					</button>
-				)}
+		<div className="flex flex-col h-full overflow-hidden bg-[oklch(0.967_0.001_286.375)] dark:bg-[oklch(0.21_0.006_285.885)] w-full">
+			{/* Horizontal step indicator */}
+			<div className="bg-white dark:bg-[oklch(0.21_0.006_285.885)] shadow-sm px-6 py-3 border-b border-[oklch(0.92_0.004_286.32)] dark:border-[oklch(1_0_0_/_10%)]">
+				{/* Step indicators with connector lines */}
+				<div className="relative mx-auto px-8 max-w-3xl">
+					{/* Connector lines rendered first (below the circles) */}
+					<div className="absolute top-5 left-0 right-0 h-0.5 mx-5">
+						{/* Single background line with individual colored segments positioned absolutely */}
+						<div className="w-full h-full bg-[var(--color-muted)] dark:bg-[var(--color-sidebar-accent)]"></div>
+						{STEPS.map((_, index) => {
+							if (index === STEPS.length - 1) return null; // No connector after last item
+							const isCompleted = index < step;
+							if (!isCompleted) return null; // Only render completed segments
+							
+							const segmentWidth = `${100 / (STEPS.length - 1)}%`;
+							const leftPosition = `${(index / (STEPS.length - 1)) * 100}%`;
+							
+							return (
+								<div 
+									key={`connector-${index}`}
+									className="absolute h-full bg-blue-600 dark:bg-blue-600 transition-all duration-300"
+									style={{
+										left: leftPosition,
+										width: segmentWidth
+									}}
+								/>
+							);
+						})}
+					</div>
+					
+					{/* Step circles and labels */}
+					<div className="flex justify-between relative z-10">
+						{STEPS.map((stepName, index) => {
+							const isActive = index === step;
+							const isCompleted = index < step;
+							return (
+								<div key={index} className="flex flex-col items-center">
+									<div 
+										className={`flex items-center justify-center rounded-full w-10 h-10 bg-white text-sm font-medium 
+										${isActive ? 'bg-blue-600 text-white border-2 border-blue-600 shadow-md' : 
+											isCompleted ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-2 border-blue-600' : 
+											'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300 border-2 border-gray-300 dark:border-gray-700'}`}
+									>
+										{isCompleted ? '✓' : index + 1}
+									</div>
+									<div className="mt-2 text-xs text-center max-w-[80px] truncate">
+										{stepName}
+									</div>
+								</div>
+							);
+						})}
+					</div>
+				</div>
 			</div>
-		</form>
+
+			{/* Form content area with fixed height and scrollable */}
+			<div className="flex-1 overflow-hidden flex flex-col w-full">
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						void form.handleSubmit();
+					}}
+					noValidate
+					className="flex-1 flex flex-col h-full"
+				>
+					{/* Scrollable content area */}
+					<div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-[oklch(0.141_0.005_285.823)]">
+						{renderStep()}
+					</div>
+
+					{/* Fixed navigation footer */}
+					<div className="border-t border-[oklch(0.92_0.004_286.32)] dark:border-[oklch(1_0_0_/_10%)] bg-white dark:bg-[oklch(0.21_0.006_285.885)] p-4 flex justify-between items-center">
+						<div>
+							{step > 0 && (
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setStep((s) => s - 1)}
+								>
+									Back
+								</Button>
+							)}
+						</div>
+						<div className="flex space-x-3">
+							{step < STEPS.length - 1 ? (
+								<Button
+									type="button"
+									onClick={() => {
+										if (validateStep(step)) {
+											setStep((s) => s + 1);
+										}
+									}}
+								>
+									Next
+								</Button>
+							) : (
+								<Button type="submit" variant="default">
+									Submit Transaction
+								</Button>
+							)}
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
 	);
 }

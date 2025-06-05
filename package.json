@@ -1,32 +1,25 @@
 {
-	"name": "portalwizard",
+	"name": "devotsp-v1.5-monorepo",
+	"version": "0.1.0",
 	"private": true,
-	"workspaces": ["apps/*", "packages/*"],
 	"scripts": {
-		"check": "biome check --write .",
-		"prepare": "husky",
-		"dev": "turbo dev",
-		"build": "turbo build",
-		"check-types": "turbo check-types",
-		"dev:native": "turbo -F native dev",
-		"dev:web": "turbo -F web dev",
-		"dev:server": "turbo -F server dev",
-		"db:push": "turbo -F server db:push",
-		"db:studio": "turbo -F server db:studio",
-		"db:generate": "turbo -F server db:generate",
-		"db:migrate": "turbo -F server db:migrate"
+		"dev": "turbo run dev",
+		"build": "turbo run build",
+		"lint": "turbo run lint",
+		"test": "turbo run test",
+		"format": "turbo run format",
+		"typecheck": "turbo run typecheck"
 	},
-	"dependencies": {},
 	"devDependencies": {
-		"@biomejs/biome": "1.9.4",
+		"@biomejs/biome": "^1.9.4",
 		"husky": "^9.1.7",
-		"lint-staged": "^15.5.2",
-		"turbo": "^2.5.3"
+		"lint-staged": "^16.1.0",
+		"turbo": "^2.0.6",
+		"typescript": "^5.5.2"
 	},
+	"packageManager": "pnpm@9.1.0",
 	"lint-staged": {
-		"*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
-			"biome check --write ."
-		]
-	},
-	"packageManager": "pnpm@10.10.0"
+		"*.{js,jsx,ts,tsx,mjs,cjs}": ["biome check --apply-unsafe --staged"],
+		"*.{json,md,yaml,yml,jsonc}": ["biome format --write --staged"]
+	}
 }

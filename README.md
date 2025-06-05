@@ -43,7 +43,7 @@ portalwizard/
 │   └── server/ (Next.js Backend - tRPC API)
 │       ├── src/
 │       │   ├── app/
-│       │   │   └── api/trpc/[trpc]/route.ts # tRPC handler
+│       │   │   └── trpc/[trpc]/route.ts # tRPC handler (handles /trpc requests)
 │       │   ├── db/
 │       │   │   ├── migrations/ # Drizzle migration files
 │       │   │   ├── schema/     # Drizzle schema definitions (auth.ts, core.ts, index.ts)
@@ -87,7 +87,7 @@ Turborepo orchestrates tasks across the monorepo. A typical `turbo.json` might l
         "BETTER_AUTH_URL",
         "BETTER_AUTH_SECRET",
         "AUTH_TRUST_HOST",
-        "CORS_ORIGIN",
+        "FRONTEND_URL", // Used by server for CORS Access-Control-Allow-Origin
         "NEXT_PUBLIC_APP_URL"
         // Add any other build-time env vars
       ]
@@ -109,7 +109,7 @@ Turborepo orchestrates tasks across the monorepo. A typical `turbo.json` might l
         "BETTER_AUTH_URL",
         "BETTER_AUTH_SECRET",
         "AUTH_TRUST_HOST",
-        "CORS_ORIGIN"
+        "FRONTEND_URL" // Used by server for CORS Access-Control-Allow-Origin
         // Add specific backend build-time env vars
       ]
     },
@@ -170,8 +170,9 @@ BETTER_AUTH_URL="http://localhost:3000/api/auth" # For local dev; update for pro
 BETTER_AUTH_SECRET="your-strong-random-secret-for-better-auth-sessions" # Min 32 chars
 AUTH_TRUST_HOST="true" # For local dev with HTTP; set to false in production if using HTTPS proxy correctly
 
-# CORS Origin for tRPC requests from the frontend
-CORS_ORIGIN="http://localhost:3000" # Frontend URL; update for production
+# Frontend URL for CORS Access-Control-Allow-Origin header in tRPC responses
+# This is used by apps/server/src/app/trpc/[trpc]/route.ts to allow credentialed requests.
+FRONTEND_URL="http://localhost:3000" # Frontend URL (e.g., http://localhost:3000 or your production frontend domain); update for production
 
 # Optional: If using primary-after-mutation middleware with separate primary DB URL
 # PRIMARY_DATABASE_URL="your-direct-primary-db-connection-string"
@@ -190,7 +191,37 @@ NEXT_PUBLIC_SERVER_URL="http://localhost:3001" # Update for production
 ```
 **Important:** For Vercel deployments, these variables (excluding `NEXT_PUBLIC_` prefixes for server-side ones) must be configured in the Vercel project's Environment Variables settings.
 
-## 5. Build and Deployment Instructions
+## 5. Portal Specifics
+
+### 5.1 Agent Portal
+
+The Agent Portal provides functionalities for real estate agents to manage their transactions.
+
+**Key Features Implemented:**
+*   **Dashboard:** Displays a list of the agent's 10 most recent transactions.
+*   **Live Data:** Fetches transaction data dynamically from the backend via tRPC.
+*   **Authentication:** Access to transaction data is protected and specific to the logged-in agent.
+*   **Transaction Submission Form:** (Details to be added once fully implemented - allows agents to submit new property transactions.)
+
+**Key Frontend Components (`apps/web`):**
+*   **Agent Dashboard Page:** `src/app/agent/page.tsx`
+*   **tRPC Client:** `src/lib/trpc.ts` (configured to send credentials for authenticated requests).
+*   **Transaction-related hooks and types:** `src/features/transactions/`
+
+### 5.2 Backend Configuration for Agent Portal (`apps/server`)
+
+The backend provides the API and data services for the Agent Portal.
+
+**Key Configurations & Implementations:**
+*   **tRPC Routers:**
+    *   `src/routers/transactions.ts`: Contains the `getRecentList` procedure to fetch agent-specific transactions. This router is merged into the main `appRouter` (`src/routers/index.ts`).
+*   **CORS (Cross-Origin Resource Sharing):**
+    *   The tRPC handler at `src/app/trpc/[trpc]/route.ts` is configured to allow cross-origin requests from the frontend (defined by `FRONTEND_URL` env var), including those with credentials (cookies).
+*   **Authentication & Authorization:**
+    *   tRPC `protectedProcedure` (defined in `src/lib/trpc.ts`) is used for sensitive operations like fetching transactions. It verifies the agent's session from cookies passed in the request headers.
+    *   Session context is created in `src/lib/context.ts` using Better Auth.
+
+## 6. Build and Deployment Instructions
 
 **Prerequisites:**
 *   Node.js (LTS version)
@@ -235,7 +266,7 @@ PortalWizard typically involves deploying two separate Vercel projects: one for 
     *   `BETTER_AUTH_URL` (production URL of this server's auth endpoint, e.g., `https://your-server-domain.vercel.app/api/auth`)
     *   `BETTER_AUTH_SECRET`
     *   `AUTH_TRUST_HOST="false"` (typically, if Vercel handles SSL termination)
-    *   `CORS_ORIGIN` (production URL of your `apps/web` deployment)
+    *   `FRONTEND_URL` (production URL of your `apps/web` deployment, used for CORS `Access-Control-Allow-Origin`)
     *   Ensure any variables listed in `turbo.json` under `server#build`'s `env` array are set here.
 
 **Important for Vercel & Turborepo:**

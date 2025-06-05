@@ -1,3 +1,32 @@
+"use client";
+
+import { SearchForm } from "@/components/search-form";
+import { TeamSwitcher } from "@/components/team-switcher";
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarGroupLabel,
+	SidebarHeader,
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	useSidebar,
+} from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
+import {
+	RiBardLine,
+	RiCodeSSlashLine,
+	RiLayoutLeftLine,
+	RiLeafLine,
+	RiLoginCircleLine,
+	RiLogoutBoxLine,
+	RiScanLine,
+	RiSettings3Line,
+	RiUserFollowLine,
+} from "@remixicon/react";
 import type * as React from "react";
 
 // Define types for navigation items
@@ -17,33 +46,6 @@ interface NavGroup {
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 	navItems?: NavGroup[]; // Navigation items will be passed as a prop
 }
-
-import { SearchForm } from "@/components/search-form";
-import { TeamSwitcher } from "@/components/team-switcher";
-import {
-	Sidebar,
-	SidebarContent,
-	SidebarFooter,
-	SidebarGroup,
-	SidebarGroupContent,
-	SidebarGroupLabel,
-	SidebarHeader,
-	SidebarMenu,
-	SidebarMenuButton,
-	SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils";
-import {
-	RiBardLine,
-	RiCodeSSlashLine,
-	RiLayoutLeftLine,
-	RiLeafLine,
-	RiLoginCircleLine,
-	RiLogoutBoxLine,
-	RiScanLine,
-	RiSettings3Line,
-	RiUserFollowLine,
-} from "@remixicon/react";
 
 const data = {
 	teams: [
@@ -122,24 +124,76 @@ const data = {
 	],
 };
 
-export function AppSidebar({ className, navItems, ...props }: AppSidebarProps) {
-	// console.log("[AppSidebar] Rendering AppSidebar"); // Removed debug line
+export function AppSidebar({
+	className,
+	navItems = [],
+	...props
+}: AppSidebarProps) {
+	const { state } = useSidebar();
+
+	// Default navigation items if none provided
+	const defaultNavItems: NavGroup[] = [
+		{
+			title: "Sections",
+			items: [
+				{
+					title: "Dashboard",
+					href: "/dashboard",
+					icon: RiLayoutLeftLine,
+					isActive: true,
+				},
+				{
+					title: "Transactions",
+					href: "/transactions",
+					icon: RiCodeSSlashLine,
+				},
+			],
+		},
+		{
+			title: "Other",
+			items: [
+				{
+					title: "Settings",
+					href: "/settings",
+					icon: RiSettings3Line,
+				},
+			],
+		},
+	];
+
+	// Use provided navItems or default ones
+	const itemsToRender = navItems.length > 0 ? navItems : defaultNavItems;
+
 	return (
-		<Sidebar collapsible="icon" className={className} {...props}>
-			<SidebarHeader className="group-data-[state=collapsed]/sidebar-wrapper:!p-0">
+		<Sidebar
+			collapsible="icon"
+			className={cn(
+				"fixed top-0 left-0 z-50 h-screen border-border border-r bg-card",
+				"transition-[width] duration-200 ease-in-out",
+				state === "collapsed"
+					? "w-[var(--sidebar-width-icon)]"
+					: "w-[var(--sidebar-width)]",
+				className,
+			)}
+			data-state={state}
+			{...props}
+		>
+			<SidebarHeader className="group-data-[state=collapsed]/sidebar-wrapper:!p-0 border-border border-b">
 				<div // Wrapper for TeamSwitcher
 					className={cn(
 						"flex items-center px-2 py-1.5", // Default state
-						"group-data-[state=collapsed]/sidebar-wrapper:!p-0 group-data-[state=collapsed]/sidebar-wrapper:flex group-data-[state=collapsed]/sidebar-wrapper:h-[52px] group-data-[state=collapsed]/sidebar-wrapper:items-center group-data-[state=collapsed]/sidebar-wrapper:justify-center group-data-[state=collapsed]/sidebar-wrapper:overflow-hidden", // Collapsed: center, fixed height, no padding for wrapper
+						"group-data-[state=collapsed]/sidebar-wrapper:!p-0 group-data-[state=collapsed]/sidebar-wrapper:flex group-data-[state=collapsed]/sidebar-wrapper:h-[64px] group-data-[state=collapsed]/sidebar-wrapper:items-center group-data-[state=collapsed]/sidebar-wrapper:justify-center group-data-[state=collapsed]/sidebar-wrapper:overflow-hidden", // Collapsed: center, fixed height, no padding for wrapper
 					)}
 				>
 					<TeamSwitcher teams={data.teams} />
 				</div>
 				<hr className="-mt-px group-data-[state=collapsed]/sidebar-wrapper:!hidden mx-2 border-border border-t group-data-[state=collapsed]/sidebar-wrapper:invisible" />
-				<SearchForm className="group-data-[state=collapsed]/sidebar-wrapper:hidden" />
+				<div className="px-4 py-3 group-data-[state=collapsed]/sidebar-wrapper:hidden">
+					<SearchForm />
+				</div>
 			</SidebarHeader>
 			<SidebarContent>
-				{(navItems || []).map((group) => (
+				{itemsToRender.map((group) => (
 					<SidebarGroup key={group.title}>
 						<SidebarGroupLabel
 							className={cn(

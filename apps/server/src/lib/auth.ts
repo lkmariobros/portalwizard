@@ -16,11 +16,23 @@ console.log(
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "pg",
-
 		schema: schema,
 	}),
 	trustedOrigins: [process.env.CORS_ORIGIN || ""],
 	emailAndPassword: {
 		enabled: true,
+	},
+	session: {
+		expiresIn: 60 * 60 * 24 * 7, // 7 days
+		updateAge: 60 * 60 * 24, // 1 day
+	},
+	user: {
+		additionalFields: {
+			role: {
+				type: "string",
+				required: true,
+				defaultValue: "agent",
+			},
+		},
 	},
 });

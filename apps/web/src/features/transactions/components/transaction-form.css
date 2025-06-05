@@ -2,105 +2,106 @@
 
 /* Light mode colors */
 .transaction-form {
-  --form-bg-color: oklch(0.967 0.001 286.375);
-  --form-content-bg: white;
-  --form-text-color: oklch(0.141 0.005 285.823);
-  --form-border-color: oklch(0.92 0.004 286.32);
-  --form-primary-color: oklch(0.723 0.219 149.579);
-  --form-primary-text: oklch(0.982 0.018 155.826);
-  --form-secondary-text: oklch(0.552 0.016 285.938);
+	--form-bg-color: oklch(0.967 0.001 286.375);
+	--form-content-bg: white;
+	--form-text-color: oklch(0.141 0.005 285.823);
+	--form-border-color: oklch(0.92 0.004 286.32);
+	--form-primary-color: oklch(0.723 0.219 149.579);
+	--form-primary-text: oklch(0.982 0.018 155.826);
+	--form-secondary-text: oklch(0.552 0.016 285.938);
 }
 
 /* Dark mode colors */
 .dark .transaction-form {
-  --form-bg-color: oklch(0.21 0.006 285.885);
-  --form-content-bg: oklch(0.141 0.005 285.823);
-  --form-text-color: oklch(0.985 0 0);
-  --form-border-color: oklch(1 0 0 / 15%);
-  --form-primary-color: oklch(0.696 0.17 162.48);
-  --form-primary-text: oklch(0.266 0.065 152.934);
-  --form-secondary-text: oklch(0.705 0.015 286.067);
+	--form-bg-color: oklch(0.21 0.006 285.885);
+	--form-content-bg: oklch(0.141 0.005 285.823);
+	--form-text-color: oklch(0.985 0 0);
+	--form-border-color: oklch(1 0 0 / 15%);
+	--form-primary-color: oklch(0.696 0.17 162.48);
+	--form-primary-text: oklch(0.266 0.065 152.934);
+	--form-secondary-text: oklch(0.705 0.015 286.067);
 }
 
 /* Form elements styling */
 .transaction-form .form-heading {
-  color: var(--form-text-color);
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
+	color: var(--form-text-color);
+	font-size: 1.25rem;
+	font-weight: 600;
+	margin-bottom: 1rem;
 }
 
 .transaction-form .form-section {
-  border-color: var(--form-border-color);
+	border-color: var(--form-border-color);
 }
 
 .transaction-form .form-label {
-  color: var(--form-text-color);
-  font-weight: 500;
-  font-size: 0.875rem;
+	color: var(--form-text-color);
+	font-weight: 500;
+	font-size: 0.875rem;
 }
 
 .transaction-form .form-accent {
-  color: var(--form-primary-color);
-  font-weight: 500;
+	color: var(--form-primary-color);
+	font-weight: 500;
 }
 
 .transaction-form .form-input {
-  background-color: var(--form-content-bg);
-  border-color: var(--form-border-color);
-  color: var(--form-text-color);
+	background-color: var(--form-content-bg);
+	border-color: var(--form-border-color);
+	color: var(--form-text-color);
 }
 
 .transaction-form .form-input:focus {
-   border-color: var(--form-primary-color);
-   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in oklch, var(--form-primary-color), transparent 80%);
- }
+	border-color: var(--form-primary-color);
+	outline: none;
+	box-shadow: 0 0 0 2px
+		color-mix(in oklch, var(--form-primary-color), transparent 80%);
+}
 
 .transaction-form .form-button-primary {
-  background-color: var(--form-primary-color);
-  color: var(--form-primary-text);
+	background-color: var(--form-primary-color);
+	color: var(--form-primary-text);
 }
 
 .transaction-form .form-button-primary:hover {
-  background-color: color-mix(in oklch, var(--form-primary-color), black 10%);
+	background-color: color-mix(in oklch, var(--form-primary-color), black 10%);
 }
 
 .transaction-form .form-button-secondary {
-  background-color: transparent;
-  border-color: var(--form-border-color);
+	background-color: transparent;
+	border-color: var(--form-border-color);
 }
 
 .form-close-button {
-  height: 2rem; /* h-8 */
-  width: 2rem; /* w-8 */
-  border-radius: 9999px; /* rounded-full */
+	height: 2rem; /* h-8 */
+	width: 2rem; /* w-8 */
+	border-radius: 9999px; /* rounded-full */
 }
 
 .dark .form-close-button {
-  color: var(--form-text-color);
+	color: var(--form-text-color);
 }
 
 .dark .form-close-button:hover {
-  background-color: oklch(0.274 0.006 286.033 / 0.3); /* dark:hover:bg-[oklch(0.274_0.006_286.033)]/30 */
-  color: var(--form-text-color);
+	background-color: oklch(0.274 0.006 286.033 / 0.3); /* dark:hover:bg-[oklch(0.274_0.006_286.033)]/30 */
+	color: var(--form-text-color);
 }
 
 .transaction-form .form-button-secondary:hover {
-  background-color: var(--form-bg-color);
+	background-color: var(--form-bg-color);
 }
 
 .transaction-form .form-secondary-text {
-  color: var(--form-secondary-text);
-  font-size: 0.875rem;
+	color: var(--form-secondary-text);
+	font-size: 0.875rem;
 }
 
 .transaction-form .form-toggle-active {
-  background-color: var(--form-primary-color);
-  color: var(--form-primary-text);
+	background-color: var(--form-primary-color);
+	color: var(--form-primary-text);
 }
 
 .transaction-form .form-toggle-inactive {
-  background-color: var(--form-content-bg);
-  color: var(--form-text-color);
+	background-color: var(--form-content-bg);
+	color: var(--form-text-color);
 }

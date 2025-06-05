@@ -123,6 +123,7 @@ export const transactions = pgTable("transactions", {
 	// Step 7: Review
 	status: transactionStatusEnum("status").default("draft").notNull(),
 	notes: text("notes"),
+	reviewNotes: text("review_notes"),
 });
 
 export const transactionDocuments = pgTable("transaction_documents", {

@@ -1,9 +1,8 @@
 "use client";
 import { Toaster } from "@/components/ui/sonner";
-import { queryClient } from "@/utils/trpc";
-import { QueryClientProvider } from "@tanstack/react-query";
 import type React from "react";
 import { useEffect, useState } from "react";
+import { TrpcProvider } from "./TrpcProvider"; // Import our new TrpcProvider
 import { ThemeProvider } from "./theme-provider";
 
 export default function Providers({
@@ -18,16 +17,16 @@ export default function Providers({
 	}, []);
 
 	return (
-		<QueryClientProvider client={queryClient}>
+		<TrpcProvider>
 			<ThemeProvider
 				attribute="class"
-				defaultTheme="system"
+				defaultTheme="light"
 				enableSystem
 				disableTransitionOnChange
 			>
 				{hasMounted && <Toaster richColors />}
 				{children}
 			</ThemeProvider>
-		</QueryClientProvider>
+		</TrpcProvider>
 	);
 }

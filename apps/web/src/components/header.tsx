@@ -1,16 +1,14 @@
 "use client";
-// import Link from "next/link"; // No longer used directly
-import { PanelLeftIcon } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useSidebarLayout } from "@/hooks/use-sidebar-layout";
 import { cn } from "@/lib/utils";
+import { Menu, PanelLeftIcon } from "lucide-react";
 import { Breadcrumbs } from "./breadcrumbs";
 import { ModeToggle } from "./mode-toggle";
 import UserMenu from "./user-menu";
 
 interface HeaderProps {
-	// Prop kept for potential explicit override, though context is primary
 	onToggleSidebar?: () => void;
 }
 
@@ -18,48 +16,61 @@ export default function Header({
 	onToggleSidebar: onToggleSidebarProp,
 }: HeaderProps) {
 	const { state, isMobile, toggleSidebar } = useSidebar();
-
-	// Prioritize prop if provided, otherwise use context's toggleSidebar for the button click
+	useSidebarLayout(); // Initialize sidebar layout hook
 	const handleToggleClick = onToggleSidebarProp || toggleSidebar;
 
 	return (
-		<>
-			{/* Main Header Bar: fixed, starts to the right of the sidebar */}
-			<div
-				className={cn(
-					"fixed top-0 right-0 z-50 h-[calc(4rem+3.5px)] border-border border-b bg-card p-4 text-card-foreground",
-					{
-						// Explicit Tailwind classes for left offset
-						"left-[var(--sidebar-width-icon)]":
-							!isMobile && state === "collapsed",
-						"left-[var(--sidebar-width)]": !isMobile && state === "expanded",
-						"left-0": isMobile, // Full width on mobile as sidebar is an overlay sheet
-					},
-				)}
-			>
-				<div className="flex flex-row items-center justify-between">
-					{/* Left side: Inline Toggle Button (non-mobile) + Breadcrumbs */}
-					<div className="flex items-center gap-3">
-						{!isMobile && (
-							<Button
-								variant="outline"
-								size="icon"
-								onClick={handleToggleClick}
-								className="rounded-md" // Standard styling, no fixed positioning
-							>
-								<PanelLeftIcon className="h-5 w-5" />
-								<span className="sr-only">Toggle Sidebar</span>
-							</Button>
+		<header
+			className={cn(
+				"fixed top-0 z-40 h-[calc(4rem+4.3px)] bg-card/95 text-card-foreground backdrop-blur-sm",
+				"border-border border-b transition-[left] duration-200 ease-in-out",
+				"flex items-center",
+				{
+					// Desktop - Collapsed
+					"right-0 left-[var(--sidebar-width-icon)]":
+						!isMobile && state === "collapsed",
+					// Desktop - Expanded
+					"right-0 left-[var(--sidebar-width)]":
+						!isMobile && state === "expanded",
+					// Mobile
+					"right-0 left-0 w-full border-border border-l": isMobile,
+				},
+				isMobile ? "px-4" : "px-6",
+			)}
+			style={
+				{
+					"--sidebar-width": "16rem",
+					"--sidebar-width-icon": "4.5rem",
+				} as React.CSSProperties
+			}
+		>
+			<div className="flex h-full w-full items-center justify-between">
+				{/* Left side: Toggle button and breadcrumbs */}
+				<div className="flex items-center space-x-2 sm:space-x-4">
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={handleToggleClick}
+						className="h-9 w-9 rounded-md md:h-10 md:w-10"
+						aria-label="Toggle sidebar"
+					>
+						{isMobile ? (
+							<Menu className="h-5 w-5" />
+						) : (
+							<PanelLeftIcon className="h-5 w-5" />
 						)}
+					</Button>
+					<div className="hidden sm:block">
 						<Breadcrumbs />
 					</div>
+				</div>
 
-					<div className="flex items-center gap-3">
-						<ModeToggle />
-						<UserMenu />
-					</div>
+				{/* Right side: Actions */}
+				<div className="flex items-center space-x-2">
+					<ModeToggle />
+					<UserMenu />
 				</div>
 			</div>
-		</>
+		</header>
 	);
 }

@@ -1,44 +1,26 @@
 {
-	"$schema": "https://turbo.build/schema.json",
-	"ui": "tui",
+	"$schema": "https://turborepo.org/schema.json",
+	"globalDependencies": ["tsconfig.json"],
+	"globalEnv": ["NODE_ENV"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],
-			"inputs": ["$TURBO_DEFAULT$", ".env*"],
-			"outputs": [".next/**", "!.next/cache/**"],
-			"env": [
-				"DATABASE_URL",
-				"CORS_ORIGIN",
-				"BETTER_AUTH_URL",
-				"BETTER_AUTH_SECRET",
-				"AUTH_TRUST_HOST"
-			]
-		},
-		"lint": {
-			"dependsOn": ["^lint"]
-		},
-		"check": {
-			"dependsOn": ["^check-types"]
+			"outputs": [".next/**", "!.next/cache/**", "dist/**", "build/**"]
 		},
 		"dev": {
 			"cache": false,
 			"persistent": true
 		},
-		"db:push": {
-			"cache": false,
-			"persistent": true
+		"lint": {
+			"dependsOn": ["^build"]
 		},
-		"db:studio": {
-			"cache": false,
-			"persistent": true
+		"test": {
+			"dependsOn": ["^build"],
+			"outputs": ["coverage/**"]
 		},
-		"db:migrate": {
-			"cache": false,
-			"persistent": true
+		"typecheck": {
+			"dependsOn": ["^build"]
 		},
-		"db:generate": {
-			"cache": false,
-			"persistent": true
-		}
+		"format": {}
 	}
 }

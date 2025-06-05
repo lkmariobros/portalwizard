@@ -1,0 +1,37 @@
+{
+	"compilerOptions": {
+		"target": "es2022",
+		"lib": ["dom", "dom.iterable", "esnext"],
+		"allowJs": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"forceConsistentCasingInFileNames": true,
+		"noEmit": true, // Base config, workspaces might override for their builds
+		"esModuleInterop": true,
+		"module": "esnext",
+		"moduleResolution": "bundler", // Aligns with modern tooling like Vite, Next.js, Bun
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"jsx": "preserve", // Important for React/Next.js
+		"incremental": true,
+		"baseUrl": ".",
+		"paths": {
+			// Example: "@/*": ["./src/*"],
+			// Workspace aliases will be configured here or in extending tsconfigs
+			// e.g., "@repo/ui/*": ["packages/ui/src/*"]
+		},
+		"plugins": [
+			{
+				"name": "next"
+			}
+		]
+	},
+	"include": [
+		"next-env.d.ts",
+		"**/*.ts",
+		"**/*.tsx",
+		".next/types/**/*.ts"
+		// Add paths to your source files, e.g., "apps/**/*.ts", "packages/**/*.ts"
+	],
+	"exclude": ["node_modules", ".turbo", "dist", "build"]
+}
